@@ -1,0 +1,97 @@
+[size=5][b][color=#d4a72c]White Honey - VRAM Optimizer[/color][/b][/size]
+[size=3]Stuttering or blurry textures with a lot of texture, armor or character mods? This shows you [b]which mods use up your graphics card's memory (VRAM)[/b], and can shrink just the heaviest textures with one double-click. Your mods are never changed.[/size]
+
+[i]In the game, White Honey clears the toxicity out of Geralt's blood. This one clears it out of your video memory.[/i]
+
+[b]Also play Cyberpunk 2077?[/b] This is the Witcher 3 version of my other tool, [url=https://www.nexusmods.com/cyberpunk2077/mods/36878]VRAM RipperDoc - Performance Optimizer[/url]. Same idea, same shortcuts, built for that game's files.
+
+[size=4][b]Who it's for[/b][/size]
+Anyone with lots of texture, armor, character or environment mods. It matters most on [b]6-12 GB cards[/b], and more with ray tracing on, because the Remastered game alone already uses a lot (8.3 GB in my test at 5120x1440 with Ultra+ textures and ray tracing). When VRAM runs out you get stutter, textures that stay blurry, or crashes. If you're not short on VRAM this won't raise your FPS, but the report still finds broken and useless files.
+
+[size=4][b]Quick start (3 double-clicks)[/b][/size]
+Close the game first. Then open the [i]White Honey[/i] folder ([i]The Witcher 3\tools\White Honey\[/i] if you extracted it into the game folder) and double-click:
+[list=1]
+[*][b]1 - Scan my mods.bat[/b]: checks every texture and mesh mod in your [i]mods[/i] and [i]dlc[/i] folders and opens a report in your browser. Changes nothing. Using Mod Organizer 2? If no mods are found, it asks for your MO2 folder once and remembers it.
+[*][b]2 - Apply budget fix.bat[/b] [i](optional)[/i]: if the report says you're over budget, this adds [b]one extra mod folder[/b] with half-size copies of only your heaviest textures. It scans first, then shows how many textures it would shrink, how big the fix will be and roughly how long it takes, and asks before writing anything. A second question covers the 4K textures of new armor, weapons and other added content: shrink them to 2K, or further to 1K (softer up close, hard to see on small screens like the Steam Deck's). Your mods stay exactly as they are.
+[*][b]3 - Measure VRAM in game.bat[/b] [i](optional)[/i]: records how much VRAM the game really uses while you play. Run it once named "before" and once named "after" (same save, same spot) to see what changed.
+[/list]
+Changed your mind? Double-click [b]Undo budget fix.bat[/b] and everything is back as it was.
+
+[size=4][b]What the report tells you[/b][/size]
+[list]
+[*][b]Which mods are heaviest[/b]: how much extra VRAM each mod adds compared to the normal game, biggest first
+[*][b]Why[/b]: oversized textures (4K/8K), very detailed models that never simplify at a distance, textures saved without compression
+[*][b]Broken or missing[/b]: cut-off or corrupt downloads, and mods that need another mod you haven't installed
+[*][b]Wasted files[/b]: files that never load because another mod wins the load order, and files identical to the normal game
+[*][b]Which installed mod each folder belongs to[/b] (works with Vortex and Mod Organizer 2), with a link to its Nexus page
+[*][b]Room for mods[/b]: how much VRAM your mods can add [i]on top of the game itself[/i] on your graphics card at your in-game settings, and which setting changes give more room
+[/list]
+
+[size=4][b]Reading the report[/b][/size]
+[list]
+[*]Each mod gets two numbers. [b]Normal play[/b] is the extra VRAM it adds because it replaces game files, so it's loaded whenever those things are on screen; this is what counts against your budget. [b]When used[/b] is for new armor, weapons, hair and other added content, which only takes VRAM while it is worn or spawned.
+[*]Your [b]Texture Quality[/b] setting is taken into account. On Low the game never shows a texture larger than 1K, on Medium and High 2K, on Ultra and Ultra+ 4K. So a 4K texture mod on High is counted as the 2K the game really loads.
+[*]Mods at the top of the table cost the most during normal play. Click a mod to see its heaviest files.
+[*][color=#ef5350]Red numbers[/color] are worth a look: flags, missing files, or being over budget.
+[*]Over budget? The simplest fix is often the [b]1K or 2K version[/b] of a big texture mod, if the author offers one. Otherwise use [b]2 - Apply budget fix[/b].
+[*]Need help with a crash or stutter? Click [b]Copy summary for a support post[/b] and paste it into your post.
+[/list]
+
+[size=4][b]Install[/b][/size]
+[list]
+[*][b]Manual download (simplest):[/b] extract the zip anywhere, for example into your Witcher 3 folder (the one with [i]bin[/i] and [i]content[/i]) or onto your Desktop. It finds Steam, GOG and Epic installs by itself; if it can't, it asks for your game folder once and remembers it.
+[*][b]Uninstall:[/b] run [i]Undo budget fix.bat[/i] if you applied a fix, then delete the [i]White Honey[/i] folder. Nothing else was installed.
+[/list]
+No requirements. It runs on its own on Windows 10/11 (64-bit). It is a tool you run outside the game, not a game mod: nothing of it loads while you play, so it can't conflict with script mods. The optional budget fix is one extra mod folder that holds only textures.
+
+[size=4][b]Tested[/b][/size]
+[list]
+[*]Game: [b]The Witcher 3 Remastered 5.01c[/b] (Steam). The tool read all 25,486 of the game's textures and 252,803 other game files without a failure.
+[*]In game: a fix-style mod with 1,458 of the game's own 2K+ textures at half size loaded and looked the same at normal distance (8.28 GB without it, 8.18 GB with it in one room). A stress test with every 2K+ texture cut to 64-128 px also loaded without problems and used 7.35 GB. See the comparison image. Saves were unchanged after the tests.
+[*][b]Not tested yet:[/b] texture mods made for game version 4.04 or older. Their files use an older layout, which the tool reads, but I had no such mod to check against. If the scan or the fix gets one wrong, please post in the comments with the mod's name.
+[*][b]Not covered yet:[/b] mods installed through the in-game Mods menu (mod.io), and Linux / Steam Deck shortcuts.
+[/list]
+
+[size=4][b]FAQ[/b][/size]
+[spoiler]
+[b]Is it safe? Does it change my mods?[/b]
+Scanning only reads files. The optional budget fix adds one new mod folder ([i]mods\mod0000_WhiteHoneyFix[/i], or the MO2 mod [i]White Honey Budget Fix[/i]) and never edits your mods. If you use a [i]mods.settings[/i] load order file, the fix is added to it and a backup of the file is kept next to it. Run Undo budget fix, or delete that folder, to go back.
+
+[b]A shortcut says "WhiteHoney.exe is missing" or "... is not recognized as an internal or external command".[/b]
+Your antivirus most likely removed the exe (new tools without a paid code-signing certificate get flagged sometimes). Open Windows Security, [i]Virus & threat protection[/i], [i]Protection history[/i], find WhiteHoney.exe and choose [i]Restore[/i] or [i]Allow on device[/i]. If it isn't listed, download the zip again and unpack all of it.
+
+[b]Will textures look worse?[/b]
+Only the textures the fix shrinks, and only to half size. That's the same smaller version the game already shows from a bit further away; nothing is re-compressed. Everything else stays sharp. If something looks too soft up close, undo the fix.
+
+[b]How much VRAM will I save?[/b]
+It depends on your mods and what's on screen. The report estimates the maximum; [b]3 - Measure VRAM in game[/b] shows the real number. In my test with [i]no texture mods at all[/i] (the worst case for this tool), halving 1,458 of the game's own textures saved about 100 MB in one room. Heavy texture modlists have far more to trim.
+
+[b]My card has 8 GB but the room for mods is tiny. Why?[/b]
+The room for mods is not your total or free VRAM. It's what's left for your mods [i]after the game itself[/i]: your card's VRAM, minus what the game needs at your settings, minus about 0.6 GB for Windows. The report shows the full sum under "How the room for mods is worked out", and when you're over it lists the setting changes that give more room, for example ray tracing off or Texture Quality High. The game's own number is a rule of thumb; your own measurement with shortcut 3 beats it.
+
+[b]How do I read "Normal play" and "When used"?[/b]
+[b]Normal play[/b] is what the mod costs whenever the things it replaces are on screen. [b]When used[/b] comes [i]on top of that[/i], only while the mod's new items are worn or spawned. A [b]negative[/b] Normal play number means the mod makes the game [i]lighter[/i] than vanilla.
+
+[b]Does it work with Mod Organizer 2 and Vortex?[/b]
+Yes for scanning: it reads Vortex's deployment list and MO2 instances to name the installed mod each folder belongs to. Run through MO2, the fix is saved as an MO2 mod named [i]White Honey Budget Fix[/i]: refresh MO2 (F5) and enable it. Steam Workshop subscriptions are scanned too.
+
+[b]I updated my mods. Do I need to redo the fix?[/b]
+Yes: run 2 - Apply budget fix again; it replaces the old fix. The scan tells you when it's needed: if a mod the fix took textures from was updated or removed, the report says "The budget fix is out of date".
+
+[b]Will it raise my FPS?[/b]
+Only if you're running out of VRAM, which shows up as stutter and textures loading late or staying blurry. If you have plenty to spare, it won't change your FPS.
+[/spoiler]
+
+[size=4][b]Technical details (for modders)[/b][/size]
+[spoiler]
+[list]
+[*]Reads the load order: folders in [i]mods[/i] that start with "mod", by mods.settings priority where set, then by name; then DLC-style mods in [i]dlc[/i], Steam Workshop items and MO2 mods. The first mod wins a conflict.
+[*]Textures come from each texture.cache index (version 6 and the Remastered's version 7): size, mips, slices, format. Meshes and everything else come from bundles (old 320-byte and Remastered 304-byte entry layouts; zlib, LZ4, Snappy) and CR2W files (162-164): vertex and index buffer sizes, triangles per LOD, import tables.
+[*]Compares against the vanilla bundles and texture cache, so costs are deltas and only references the mod [i]added[/i] can count as missing.
+[*]"Normal play" = files that override vanilla plus new files reachable from them through references; everything else counts as "when used".
+[*]The budget fix copies each planned texture's cache entry without its largest mip. Mips are separate zlib blocks, so nothing is decoded or re-encoded. It writes a new texture.cache in its own mod folder that sorts first, plus a small list used to detect when the fix is out of date.
+[*]The live monitor reads Windows "GPU Process Memory" performance counters, the same source as Task Manager.
+[*]Command line: [i]WhiteHoney.exe --help[/i] (--budget, --include-new-items, --new-items-to 1k, --json and more).
+[/list]
+Source code (MIT): [url=https://github.com/La2o/Witcher3-WhiteHoney-VRAMOptimizer]GitHub[/url]
+[/spoiler]

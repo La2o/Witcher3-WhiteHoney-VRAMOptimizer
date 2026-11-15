@@ -25,6 +25,10 @@ The scan is **read-only**. The only thing that ever writes to your game folder i
 
 Works with The Witcher 3 **Remastered (5.x)**, and reads mods cooked for the older Next-Gen (4.x) and Classic (1.3x) versions.
 
+**Download:** [GitHub releases](https://github.com/La2o/Witcher3-WhiteHoney-VRAMOptimizer/releases).
+
+![White Honey report](docs/report.png)
+
 ## Install
 
 Extract the zip anywhere, for example into your Witcher 3 folder (the one that contains `bin` and `content`) or onto your Desktop. The tool finds Steam, GOG and Epic installs by itself; if it can't, it asks for the game folder once and remembers it.
@@ -110,6 +114,8 @@ All three runs loaded the same save and stood in the same room; VRAM is the stea
 | Baseline | No mods | **8.28 GB** |
 | Half size | A fix-style cache with 1,458 of the game's own 2K+ textures (Geralt, items, decorations) halved once | **8.18 GB**, looks the same at normal distance |
 | Extreme | Every 2K+ texture in the game (5,406) cut to 64-128 px | **7.35 GB**, armor and props visibly low-res, colors and shapes correct |
+
+![In-game test](docs/in-game-test.png)
 
 - The game started, loaded the save and rendered correctly each time, with no crashes or missing textures. The extreme run proves the game really takes its textures from a cache this tool wrote, from a mod folder that holds nothing but `texture.cache`.
 - How much you save depends on what is on screen: only part of those textures was visible in that room. A heavy texture modlist saves more, which is why `3 - Measure VRAM in game` is there.
