@@ -25,7 +25,7 @@ The scan is **read-only**. The only thing that ever writes to your game folder i
 
 Works with The Witcher 3 **Remastered (5.x)**, and reads mods cooked for the older Next-Gen (4.x) and Classic (1.3x) versions.
 
-**Download:** [GitHub releases](https://github.com/La2o/Witcher3-WhiteHoney-VRAMOptimizer/releases).
+**Download:** [Nexus Mods](https://www.nexusmods.com/witcher3/mods/15760) or [GitHub releases](https://github.com/La2o/Witcher3-WhiteHoney-VRAMOptimizer/releases).
 
 ![White Honey report](docs/report.png)
 
@@ -33,7 +33,7 @@ Works with The Witcher 3 **Remastered (5.x)**, and reads mods cooked for the old
 
 Extract the zip anywhere, for example into your Witcher 3 folder (the one that contains `bin` and `content`) or onto your Desktop. The tool finds Steam, GOG and Epic installs by itself; if it can't, it asks for the game folder once and remembers it.
 
-**Vortex / Mod Organizer 2:** it also installs like a mod (the zip has a `tools\White Honey\` folder); the shortcuts are then in that folder.
+Download it manually rather than through a mod manager: it is a tool you run, not a game mod, and installing it through Vortex or Mod Organizer 2 has not been tested.
 
 Requirements: Windows 10/11 x64. No .NET install is needed (the exe is self-contained), and nothing from the game is needed to read its files.
 
