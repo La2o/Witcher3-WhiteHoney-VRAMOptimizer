@@ -77,6 +77,8 @@ public sealed class BudgetPlan
     public long NewItemSaves;
     public List<PlanStep> Steps = new();
     public List<(ModReport Mod, long Saves, int Count)> PerMod = new();
+    /// <summary>Excluded mods that have at least one texture the fix could otherwise shrink.</summary>
+    public List<ModReport> ExcludedWithTextures = new();
     public bool Reachable => AfterPlan <= Budget;
 
     /// <summary>A texture the fix can shrink: shown at 2K or larger, and with a smaller mip left to fall back on.</summary>
@@ -93,7 +95,7 @@ public sealed class BudgetPlan
     {
         var plan = new BudgetPlan { Budget = budget, Current = r.AlwaysDelta, WhenUsed = r.WhenUsedDelta, IncludeNew = includeNew, NewItemsMax = newItemsMax };
         long current = plan.Current;
-        var candidates = r.Mods.SelectMany(m => m.Assets.Where(a => Shrinkable(a) && a.AlwaysLoaded && a.DeltaGpu > 0)
+        var candidates = r.Mods.Where(m => !m.ExcludedFromFix).SelectMany(m => m.Assets.Where(a => Shrinkable(a) && a.AlwaysLoaded && a.DeltaGpu > 0)
             .Select(a => (Mod: m, Asset: a))).ToList();
         var state = candidates.ToDictionary(c => c.Asset, c => (c.Mod, Halvings: 0, Gpu: c.Asset.GpuBytes));
         var pq = new PriorityQueue<AssetInfo, long>();
@@ -115,7 +117,7 @@ public sealed class BudgetPlan
             plan.Steps.Add(new PlanStep(s.Mod, asset, s.Halvings, asset.GpuBytes - s.Gpu));
 
         if (includeNew)
-            foreach (var m in r.Mods)
+            foreach (var m in r.Mods.Where(m => !m.ExcludedFromFix))
                 foreach (var a in m.Assets.Where(a => Shrinkable(a) && !a.AlwaysLoaded && a.ShownDim > newItemsMax))
                 {
                     int halvings = 0;
@@ -128,6 +130,7 @@ public sealed class BudgetPlan
 
         plan.Steps = plan.Steps.OrderByDescending(p => p.Saves).ToList();
         plan.PerMod = plan.Steps.GroupBy(p => p.Mod).Select(g => (g.Key, g.Sum(x => x.Saves), g.Count())).OrderByDescending(x => x.Item2).ToList();
+        plan.ExcludedWithTextures = r.Mods.Where(m => m.ExcludedFromFix && m.Assets.Any(Shrinkable)).ToList();
         plan.AfterPlan = current;
         return plan;
     }

@@ -77,6 +77,8 @@ public sealed class ModReport
     public int? NexusId;
     public string? Manager;
     public List<AssetInfo> Assets = new();
+    /// <summary>The player asked for this mod to be left as it is by the budget fix.</summary>
+    public bool ExcludedFromFix;
 
     public long GpuDelta => Assets.Sum(a => a.DeltaGpu);
     public long AlwaysDelta => Assets.Where(a => a.AlwaysLoaded).Sum(a => a.DeltaGpu);
@@ -113,6 +115,8 @@ public sealed class ScanResult
     public long DataBytes => Mods.Sum(m => m.DataBytes);
     /// <summary>Whether an existing budget fix still matches the installed mods (null when there is no fix).</summary>
     public BudgetFix.FixCheck? FixCheck;
+    /// <summary>The exclusion list file in use (null when none).</summary>
+    public string? ExcludeFile;
 }
 
 public sealed class ScanOptions

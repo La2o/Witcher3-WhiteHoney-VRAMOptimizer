@@ -12,7 +12,7 @@ Anyone with lots of texture, armor, character or environment mods. It matters mo
 Close the game first. Then open the [i]White Honey[/i] folder ([i]The Witcher 3\tools\White Honey\[/i] if you extracted it into the game folder) and double-click:
 [list=1]
 [*][b]1 - Scan my mods.bat[/b]: checks every texture and mesh mod in your [i]mods[/i] and [i]dlc[/i] folders and opens a report in your browser. Changes nothing. Using Mod Organizer 2? If no mods are found, it asks for your MO2 folder once and remembers it.
-[*][b]2 - Apply budget fix.bat[/b] [i](optional)[/i]: if the report says you're over budget, this adds [b]one extra mod folder[/b] with half-size copies of only your heaviest textures. It scans first, then shows how many textures it would shrink, how big the fix will be and roughly how long it takes, and asks before writing anything. A second question covers the 4K textures of new armor, weapons and other added content: shrink them to 2K, or further to 1K (softer up close, hard to see on small screens like the Steam Deck's). Your mods stay exactly as they are.
+[*][b]2 - Apply budget fix.bat[/b] [i](optional)[/i]: if the report says you're over budget, this adds [b]one extra mod folder[/b] with half-size copies of only your heaviest textures. It scans first, then shows how many textures it would shrink, how big the fix will be and roughly how long it takes, and asks before writing anything. A second question covers the 4K textures of new armor, weapons and other added content: shrink them to 2K, or further to 1K (softer up close, hard to see on small screens like the Steam Deck's). Your mods stay exactly as they are. Before it writes anything, it lists the mods it would touch: type the numbers of any you want left untouched (for example [i]1,3[/i]) or press Enter to trim them all, and it can remember your choice for next time.
 [*][b]3 - Measure VRAM in game.bat[/b] [i](optional)[/i]: records how much VRAM the game really uses while you play. Run it once named "before" and once named "after" (same save, same spot) to see what changed.
 [/list]
 Changed your mind? Double-click [b]Undo budget fix.bat[/b] and everything is back as it was.
@@ -78,6 +78,11 @@ Yes for scanning: it reads Vortex's deployment list and MO2 instances to name th
 [b]I updated my mods. Do I need to redo the fix?[/b]
 Yes: run 2 - Apply budget fix again; it replaces the old fix. The scan tells you when it's needed: if a mod the fix took textures from was updated or removed, the report says "The budget fix is out of date".
 
+[b]Can I keep some mods out of the fix?[/b]
+Yes. When you run [b]2 - Apply budget fix[/b], it first shows a numbered list of the mods the fix would touch, with how many textures and how much VRAM each. Type the numbers of the mods to leave untouched (for example [i]1,3[/i]) or press Enter to trim them all. It then asks whether to remember your choice.
+Remembered choices live in a text file next to the tool, [i]White Honey - Excluded mods.txt[/i]. The first scan creates it, with instructions inside. Write one mod per line: its folder name in the game's [i]mods[/i] folder (for example [i]modHDReworkedProject[/i]) or its name in Vortex or Mod Organizer 2. A [i]*[/i] matches anything (for example [i]mod*Geralt*[/i]). Lines starting with [i]#[/i] are notes. You can edit the file in Notepad at any time.
+Textures of an excluded mod are never shrunk. The scan and the report name those mods as "kept as is", and say so if your mods can't fit the budget any more because of them. If you already applied a fix and exclude a mod afterwards, the next scan says the fix is out of date: run 2 - Apply budget fix again and it rebuilds the fix without that mod. One catch: if an excluded mod loses a file conflict to another mod, that texture belongs to the winning mod and can still be trimmed there.
+
 [b]Will it raise my FPS?[/b]
 Only if you're running out of VRAM, which shows up as stutter and textures loading late or staying blurry. If you have plenty to spare, it won't change your FPS.
 [/spoiler]
@@ -91,7 +96,7 @@ Only if you're running out of VRAM, which shows up as stutter and textures loadi
 [*]"Normal play" = files that override vanilla plus new files reachable from them through references; everything else counts as "when used".
 [*]The budget fix copies each planned texture's cache entry without its largest mip. Mips are separate zlib blocks, so nothing is decoded or re-encoded. It writes a new texture.cache in its own mod folder that sorts first, plus a small list used to detect when the fix is out of date.
 [*]The live monitor reads Windows "GPU Process Memory" performance counters, the same source as Task Manager.
-[*]Command line: [i]WhiteHoney.exe --help[/i] (--budget, --include-new-items, --new-items-to 1k, --json and more).
+[*]Command line: [i]WhiteHoney.exe --help[/i] (--budget, --include-new-items, --new-items-to 1k, --exclude "<name>;<name>" to exclude mods for one run, --exclude-file <file> to use a different list file, --json and more).
 [/list]
 Source code (MIT): [url=https://github.com/La2o/Witcher3-WhiteHoney-VRAMOptimizer]GitHub[/url]
 [/spoiler]

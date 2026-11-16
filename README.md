@@ -17,7 +17,7 @@ The same idea as [VRAM RipperDoc](https://www.nexusmods.com/cyberpunk2077/mods/3
 Then it:
 
 - Works out the **room for mods**: how much VRAM your mods can add on top of the game itself, from your GPU and your in-game settings (resolution, texture quality, ray tracing, frame generation, HairWorks). If you're over, it also says which setting changes give the most room.
-- Lists which textures to halve to fit that budget, and can **apply the plan** as one separate, removable mod folder (`--make-budget-fix`)
+- Lists which textures to halve to fit that budget, and can **apply the plan** as one separate, removable mod folder (`--make-budget-fix`). You can **keep chosen mods out** of the fix.
 - **Measures real VRAM** while you play (`--live`), so you can compare before and after
 - Shows **what changed since your last scan**, and gives you a **copy-paste summary** for support threads
 
@@ -46,7 +46,7 @@ Open the `White Honey` folder and double-click the numbered shortcuts (`START HE
 | Shortcut | What it does |
 |---|---|
 | `1 - Scan my mods.bat` | Scans and opens `White-Honey-Report.html`. Changes nothing. |
-| `2 - Apply budget fix.bat` | Asks first, then writes the one extra budget fix folder. |
+| `2 - Apply budget fix.bat` | Lets you pick mods to leave untouched, asks first, then writes the one extra budget fix folder. |
 | `3 - Measure VRAM in game.bat` | Asks for a name (for example *before* or *after*), then records real VRAM until you close the game. |
 | `Undo budget fix.bat` | Removes the budget fix wherever it was saved: the game's `mods` folder or the MO2 mod "White Honey Budget Fix". |
 
@@ -69,6 +69,8 @@ Everything is also available from the command line:
   --make-budget-fix         Write ONE extra mod folder with the planned textures halved (your mods are untouched)
   --include-new-items       Also shrink new armor, weapons and other added content to 2K
   --new-items-to 1k         ... to 1K instead
+  --exclude "<mod>;<mod>"   Never shrink these mods, for this run only
+  --exclude-file <file>     Use a different list of excluded mods (default: White Honey - Excluded mods.txt)
   --remove-budget-fix       Delete it again
  Measure real VRAM
   --live [--label <name>] [--seconds <n>]   Record the game's actual VRAM use while you play (Ctrl+C to stop)
@@ -81,6 +83,14 @@ Everything is also available from the command line:
 3. Run `2 - Apply budget fix`.
 4. Load the same save and measure again as *after*. The monitor prints a before/after table.
 5. Don't like it? Run `Undo budget fix`.
+
+### Keeping mods out of the fix
+
+`2 - Apply budget fix` first shows a numbered list of the mods the fix would touch, with how many textures and how much VRAM each. Type the numbers of the mods to leave untouched (for example `1,3`), or press Enter to trim them all. It then asks whether to remember your choice for next time.
+
+Remembered choices are kept in `White Honey - Excluded mods.txt` next to the tool. The first scan creates it, with instructions inside. Put one mod per line: its folder name in the game's `mods` folder (for example `modHDReworkedProject`) or its name in Vortex or Mod Organizer 2. A `*` matches anything (`mod*Geralt*`), and lines starting with `#` are notes. Edit it in Notepad whenever you like.
+
+Textures of an excluded mod are never shrunk. The scan and the report list them as "kept as is", and say so if the mods can't fit the budget any more because of them. If a fix is already applied and you exclude a mod afterwards, the next scan says the fix is out of date. Run `2 - Apply budget fix` again to rebuild it without that mod.
 
 ### Reading the report
 
@@ -99,7 +109,7 @@ Everything is also available from the command line:
 
 ## How the budget fix works
 
-A Witcher 3 texture mod keeps its big mip levels in `texture.cache`, one zlib block per mip. For each planned texture, White Honey copies the texture's entry **without its largest mip** into a new cache. The mips that remain are the mod's own smaller versions, copied byte for byte, so nothing is decoded or re-encoded and the result is exactly what the game would show for that texture from a bit further away.
+A Witcher 3 texture mod keeps its big mip levels in `texture.cache`, one zlib block per mip. For each planned texture, White Honey copies the texture's entry **without its largest mip** into a new cache. The mips that remain are the mod's own smaller versions, copied byte for byte, so nothing is decoded or re-encoded and the result is exactly what the game would show for that texture from a bit further away. Mods you excluded are skipped. If an excluded mod loses a file conflict to another mod, that texture belongs to the winning mod and can still be trimmed there.
 
 The new cache goes into its own mod folder, `mods\mod0000_WhiteHoneyFix\content\texture.cache`. The folder name is chosen so it loads before your mods (more zeros are added if a mod of yours sorts earlier), and if you use a `mods.settings` load order file the fix is added to it with the best priority (with a backup).
 

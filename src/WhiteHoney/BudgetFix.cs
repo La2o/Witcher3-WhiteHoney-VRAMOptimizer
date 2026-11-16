@@ -22,14 +22,15 @@ public static class BudgetFix
     /// was updated, or another mod now wins), so the fix shows an old version. Removed: no installed mod has that
     /// texture any more, so the fix brings back a texture of a mod you removed.
     /// </summary>
-    public sealed record FixCheck(int Textures, List<string> Changed, List<string> Removed, bool HasManifest)
+    public sealed record FixCheck(int Textures, List<string> Changed, List<string> Removed, List<string> Excluded, bool HasManifest)
     {
-        public bool Stale => Changed.Count > 0 || Removed.Count > 0;
+        public bool Stale => Changed.Count > 0 || Removed.Count > 0 || Excluded.Count > 0;
 
         public string Describe() => string.Join(" and ", new[]
         {
             Changed.Count > 0 ? $"{Changed.Count:N0} of its {Textures:N0} textures come from mods that were updated since" : null,
             Removed.Count > 0 ? $"{Removed.Count:N0} come from mods you removed" : null,
+            Excluded.Count > 0 ? $"{Excluded.Count:N0} come from mods you have since excluded" : null,
         }.OfType<string>());
     }
 
@@ -45,6 +46,7 @@ public static class BudgetFix
                 foreach (var x in m.Assets.Where(x => x.Kind == AssetKind.Texture && x.Loads)) winners.TryAdd(x.TexKey, (m, x));
             var changed = new List<string>();
             var removed = new List<string>();
+            var excluded = new List<string>();
             int textures = 0;
             bool hasManifest = true;
             // Mods of both cache versions give two fix folders, side by side.
@@ -66,11 +68,12 @@ public static class BudgetFix
                 foreach (var e in c.Entries)
                 {
                     if (!winners.TryGetValue(e.Hash, out var now)) removed.Add(e.Name);
+                    else if (now.Mod.ExcludedFromFix) excluded.Add($"{e.Name} ({now.Mod.Name})");
                     else if (manifest != null && manifest.TryGetValue(e.Hash, out var stamp) && stamp.Length > 0 && stamp != now.Asset.Stamp)
                         changed.Add($"{e.Name} ({now.Mod.Name})");
                 }
             }
-            return new FixCheck(textures, changed, removed, hasManifest);
+            return new FixCheck(textures, changed, removed, excluded, hasManifest);
         }
         catch { return null; }
     }

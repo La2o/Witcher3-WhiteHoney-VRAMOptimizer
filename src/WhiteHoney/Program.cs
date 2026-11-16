@@ -26,6 +26,8 @@ Usage: WhiteHoney [options]
   --include-new-items       Also shrink new armor, weapons and other added content to 2K (they only cost VRAM while used)
   --new-items-to 1k         ... to 1K instead (softer up close; fine on small screens like the Steam Deck)
   --remove-budget-fix       Delete it again
+  --exclude "<mod>;<mod>"   Never shrink these mods (this run only; folder name or mod manager name, * matches anything)
+  --exclude-file <path>     Mods to never shrink, one per line (default: "White Honey - Excluded mods.txt" next to the exe, made for you)
  Measure real VRAM
   --live [--label <name>] [--seconds <n>]   Record the game's actual VRAM use while you play (Ctrl+C to stop)
 """;
@@ -190,12 +192,18 @@ if (opts.TryGetValue("budget", out var b) && double.TryParse(b, System.Globaliza
     result.BudgetWhy = "set with --budget";
 }
 else (budget, result.BudgetWhy) = GpuInfo.SuggestBudget(result.Gpu?.VramBytes ?? 8L << 30, result.Settings);
+// Mods the player wants left alone: the list file next to the tool (made on first run) plus --exclude for this run.
+var excludeFile = Platform.FromUser(opts.GetValueOrDefault("exclude-file")) ?? Exclusions.DefaultPath;
+if (!quiet) Exclusions.EnsureFile(excludeFile);
+result.ExcludeFile = excludeFile;
+foreach (var unmatched in Exclusions.Apply(result.Mods, Exclusions.Load(excludeFile).Concat(Exclusions.Parse(opts.GetValueOrDefault("exclude")))))
+    Log($"Excluded mods list: no installed mod matches \"{unmatched}\"");
 result.BudgetFix ??= BudgetFix.FindExisting(modRoot, fixDirs);
 if (result.BudgetFix != null) result.FixCheck = BudgetFix.Check(result.BudgetFix, result);
 int newItemsMax = opts.GetValueOrDefault("new-items-to")?.Trim().ToLowerInvariant() is "1k" or "1024" ? 1024 : 2048;
 var plan = BudgetPlan.Build(result, budget, includeNew: opts.ContainsKey("include-new-items"), newItemsMax);
 if (opts.ContainsKey("stress-all")) // developer stress test: halve every loaded 2K+ texture
-    plan.Steps = result.Mods.SelectMany(m => m.Assets.Where(BudgetPlan.Shrinkable).Select(a => new PlanStep(m, a, 1, a.GpuBytes * 3 / 4))).ToList();
+    plan.Steps = result.Mods.Where(m => !m.ExcludedFromFix).SelectMany(m => m.Assets.Where(BudgetPlan.Shrinkable).Select(a => new PlanStep(m, a, 1, a.GpuBytes * 3 / 4))).ToList();
 
 if (quiet)
 {
@@ -223,6 +231,34 @@ if (makingFix)
         List<PlanStep> NewItems(int max) => BudgetPlan.Build(result, budget, includeNew: true, max).Steps.Where(s => !s.Asset.AlwaysLoaded).ToList();
         var to2k = NewItems(2048);
         var to1k = NewItems(1024);
+
+        // Every mod the fix could touch (to1k holds all of the new-items choices), so the player can keep some untouched.
+        var touched = normal.Steps.Concat(to1k).GroupBy(s => s.Mod).Select(g => (Mod: g.Key, Count: g.Count(), Saves: g.Sum(s => s.Saves)))
+            .OrderByDescending(x => x.Saves).ToList();
+        if (touched.Count > 0)
+        {
+            Console.WriteLine("The fix could touch these mods:");
+            for (int i = 0; i < touched.Count; i++)
+                Console.WriteLine($"  {i + 1}) {touched[i].Mod.Name}: {touched[i].Count:N0} texture(s), saves {Report.Size(touched[i].Saves)}");
+            Console.Write("Leave any of these mods untouched? Type their numbers (for example 1,3), or press Enter to trim them all: ");
+            var picked = (Console.ReadLine() ?? "").Split(new[] { ',', ' ', ';' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(t => int.TryParse(t, out var n) && n >= 1 && n <= touched.Count ? touched[n - 1].Mod : null).OfType<ModReport>().Distinct().ToList();
+            if (picked.Count > 0)
+            {
+                foreach (var m in picked) m.ExcludedFromFix = true;
+                Console.WriteLine($"Leaving untouched: {string.Join(", ", picked.Select(m => m.Name))}");
+                if (Ask("Remember this for next time?"))
+                    Console.WriteLine(Exclusions.Append(excludeFile, picked.Select(m => m.Name))
+                        ? $"Saved to \"{Path.GetFileName(excludeFile)}\" next to the tool."
+                        : "Couldn't save that list this time (the file can't be written). The mods are still left alone for this run.");
+                Console.WriteLine();
+                // Plan again without them, so the questions below show the new numbers.
+                plan = BudgetPlan.Build(result, budget, includeNew: opts.ContainsKey("include-new-items"), newItemsMax);
+                normal = BudgetPlan.Build(result, budget, includeNew: false);
+                to2k = NewItems(2048);
+                to1k = NewItems(1024);
+            }
+        }
         var chosen = new List<PlanStep>();
         if (normal.Current <= normal.Budget)
             Console.WriteLine($"Normal play: your mods add about {Report.Size(normal.Current)} on top of the game; your card has room for {Report.Size(normal.Budget)}. Nothing to fix there.");

@@ -66,6 +66,7 @@ public static class Summary
         if (r.Gpu != null) sb.AppendLine($"GPU: {r.Gpu.Name} ({Report.Size(r.Gpu.VramBytes)})" + (r.Settings != null ? $" · {r.Settings.Describe()}" : ""));
         sb.AppendLine($"Room for mods on top of the game: {Report.Size(plan.Budget)} ({r.BudgetWhy}) → {(plan.Current <= plan.Budget ? "fits" : $"{Report.Size(plan.Current - plan.Budget)} too much")}");
         if (r.BudgetFix != null) sb.AppendLine($"Budget fix active: `{Path.GetFileName(r.BudgetFix)}`" + (r.FixCheck is { Stale: true } f ? $" (out of date: {f.Describe()})" : ""));
+        if (r.Mods.Where(m => m.ExcludedFromFix).Select(m => m.Name).ToList() is { Count: > 0 } kept) sb.AppendLine($"Kept as is (excluded from the fix): {string.Join(", ", kept)}");
         sb.AppendLine();
         sb.AppendLine("| Mod | Normal play | When used | Tex | Mesh | Flags |");
         sb.AppendLine("|---|---:|---:|---:|---:|---:|");

@@ -21,6 +21,11 @@ Double-click the numbered files in order:
       them to 2K, and if you like, further to 1K (softer up close, hard to
       see on small screens like the Steam Deck's). When it is done it shows
       the new folder in Explorer.
+      Before that it lists the mods the fix would touch (with textures and
+      VRAM for each). Type the numbers of mods to leave untouched, like 1,3,
+      or press Enter to trim them all. It then asks whether to remember
+      your choice. If a fix is already applied and you exclude a mod later,
+      the next scan says the fix is out of date: run step 2 again.
 
   3 - Measure VRAM in game.bat   (optional)
       Records how much video memory the game really uses while you play.
@@ -37,5 +42,7 @@ A shortcut says WhiteHoney.exe is missing? Your antivirus probably removed
 it: restore it in Windows Security > Virus & threat protection > Protection
 history, or download the mod again.
 Reports are saved next to these files (White-Honey-Report.html).
+Mods to keep out of the fix are listed in White Honey - Excluded mods.txt
+(next to these files; the first scan creates it). Open it in Notepad.
 Advanced options: open a terminal here and run  WhiteHoney.exe --help
 More info: README.md

@@ -25,7 +25,8 @@ public static class Report
         if (r.FixCheck is { Stale: true } stale)
         {
             Console.WriteLine($"  ! The budget fix is out of date: {stale.Describe()}.");
-            Console.WriteLine("    It shows old copies of those textures. Run \"2 - Apply budget fix\" again to rebuild it, or \"Undo budget fix\" to remove it.");
+            // Updated or removed mods leave old copies in the fix; a newly excluded mod is simply still being trimmed.
+            Console.WriteLine($"    {(stale.Changed.Count + stale.Removed.Count > 0 ? "It shows old copies of those textures." : "It still trims the mods you excluded.")} Run \"2 - Apply budget fix\" again to rebuild it, or \"Undo budget fix\" to remove it.");
         }
         Console.WriteLine();
         Console.WriteLine($"Extra VRAM your mods use during normal play:   {Size(r.AlwaysDelta)}");
@@ -66,6 +67,13 @@ public static class Report
             if (r.BudgetFix == null && plan.Steps.Count > 0)
                 Console.WriteLine("  To apply: double-click \"2 - Apply budget fix.bat\" (your mods are not modified; \"Undo budget fix.bat\" removes it).");
         }
+        if (plan.ExcludedWithTextures.Count > 0)
+        {
+            Console.WriteLine($"Kept as is (excluded from the fix): {string.Join(", ", plan.ExcludedWithTextures.Select(m => m.Name))}");
+            Console.WriteLine($"  (edit \"{Exclusions.FileName}\" next to the tool to change this)");
+            if (!plan.Reachable)
+                Console.WriteLine("  The mods you excluded are part of the reason the budget can't be reached: their big textures are left as they are.");
+        }
         if (plan.Current > plan.Budget && SettingsTips(r) is { Length: > 0 } tips)
             Console.WriteLine($"  Lower settings also give mods more room (estimates): {tips}.");
         foreach (var l in r.HistoryDiff) Console.WriteLine(l);
@@ -95,8 +103,11 @@ public static class Report
             if (fc.Stale) w.WriteString("why", fc.Describe());
             w.WriteStartArray("changed"); foreach (var x in fc.Changed) w.WriteStringValue(x); w.WriteEndArray();
             w.WriteStartArray("removed"); foreach (var x in fc.Removed) w.WriteStringValue(x); w.WriteEndArray();
+            w.WriteStartArray("excluded"); foreach (var x in fc.Excluded) w.WriteStringValue(x); w.WriteEndArray();
             w.WriteEndObject();
         }
+        w.WriteStartArray("excluded"); foreach (var m in r.Mods.Where(m => m.ExcludedFromFix)) w.WriteStringValue(m.Name); w.WriteEndArray();
+        if (r.ExcludeFile != null) w.WriteString("excludeFile", Path.GetFileName(r.ExcludeFile));
         w.WriteNumber("totalDelta", r.TotalDelta);
         w.WriteNumber("ramBytes", r.DataBytes);
         w.WriteNumber("alwaysDelta", r.AlwaysDelta);
@@ -126,7 +137,7 @@ public static class Report
             if (m.Package != null) w.WriteString("package", m.Package);
             if (m.NexusId != null) w.WriteNumber("nexusId", m.NexusId.Value);
             if (m.Manager != null) w.WriteString("manager", m.Manager);
-            w.WriteNumber("priority", m.Priority); w.WriteNumber("disk", m.DiskSize);
+            w.WriteNumber("priority", m.Priority); w.WriteNumber("disk", m.DiskSize); w.WriteBoolean("excluded", m.ExcludedFromFix);
             if (m.Error != null) w.WriteString("error", m.Error);
             w.WriteNumber("delta", m.GpuDelta); w.WriteNumber("always", m.AlwaysDelta); w.WriteNumber("whenUsed", m.WhenUsedDelta); w.WriteNumber("texDelta", m.TextureDelta); w.WriteNumber("meshDelta", m.MeshDelta);
             w.WriteNumber("textures", m.Textures); w.WriteNumber("meshes", m.Meshes); w.WriteNumber("tris", m.Tris0);
@@ -217,11 +228,12 @@ $('#cards').innerHTML=[['Extra VRAM in normal play',sz(D.alwaysDelta)],['New ite
 const B=D.budget,stepsAlways=B.steps.filter(s=>s.always).length;let bh=`<h2>Budget</h2>`;
 if(D.budgetArchive)bh+=`<p class="ok">The budget fix is active (<code>${esc(D.budgetArchive)}</code>). To remove it, double-click <b>Undo budget fix.bat</b>.</p>`;
 const F=D.budgetFix;
-if(F&&F.stale)bh+=`<p class="warn">The budget fix is out of date: ${esc(F.why)}. It shows old copies of those textures. <b>Double-click <i>2 - Apply budget fix</i> again</b> to rebuild it, or <i>Undo budget fix</i> to remove it.</p><details><summary class="note">Which textures</summary><pre>${esc([...F.changed.map(x=>'updated since: '+x),...F.removed.map(x=>'mod removed: '+x)].slice(0,100).join('\n'))}</pre></details>`;
+if(F&&F.stale)bh+=`<p class="warn">The budget fix is out of date: ${esc(F.why)}. ${(F.changed||[]).length+(F.removed||[]).length?'It shows old copies of those textures.':'It still trims the mods you excluded.'} <b>Double-click <i>2 - Apply budget fix</i> again</b> to rebuild it, or <i>Undo budget fix</i> to remove it.</p><details><summary class="note">Which textures</summary><pre>${esc([...(F.changed||[]).map(x=>'updated since: '+x),...(F.removed||[]).map(x=>'mod removed: '+x),...(F.excluded||[]).map(x=>'now excluded: '+x)].slice(0,100).join('\n'))}</pre></details>`;
 if(B.current<=B.budget)bh+=`<p class="ok">During normal play your mods add about <b>${sz(B.current)}</b> on top of the game itself. At your settings your card has room for ${sz(B.budget)} of that, so nothing needs fixing.</p>`;
 else if(D.budgetArchive)bh+=`<p>Without the fix your mods would add about ${sz(B.current)} on top of the game during normal play, ${sz(B.current-B.budget)} more than the ${sz(B.budget)} of room your card has. The fix brings this to about <b>${sz(B.afterPlan)}</b>${B.afterPlan<=B.budget?', which fits':'; to go lower, remove or swap the heaviest mod below'}.</p>`;
 else{bh+=`<p class="warn">During normal play your mods add about <b>${sz(B.current)}</b> on top of the game itself, but at your settings your card only has room for ${sz(B.budget)}: ${sz(B.current-B.budget)} too much.</p>`;
  bh+=B.afterPlan<=B.budget?`<p>Halving ${stepsAlways} texture(s) fixes it. <b>To apply: double-click <i>2 - Apply budget fix.bat</i></b>. It adds one extra mod folder and never changes your mods; <i>Undo budget fix.bat</i> removes it.</p>`:`<p>Halving the biggest textures gets you to ${sz(B.afterPlan)}. To go lower, remove or swap the heaviest mod at the top of the table below. <b>To apply what can be done: double-click <i>2 - Apply budget fix.bat</i></b>.</p>`;}
+if(D.excluded&&D.excluded.length)bh+=`<p class="note">Kept as is (excluded from the fix): <b>${esc(D.excluded.join(', '))}</b>. To change this, edit <code>${esc(D.excludeFile||'White Honey - Excluded mods.txt')}</code> next to the tool.</p>`;
 if(B.current>B.budget&&B.tips)bh+=`<p>Lower settings also give mods more room (estimates): ${esc(B.tips)}.</p>`;
 bh+=`<p class="note">New items add up to ${sz(B.whenUsed)} if every one of them were used at once, which never happens, so they don't count against this room. <i>2 - Apply budget fix</i> can also shrink their big textures to 2K or 1K if you say yes when it asks.</p>`;
 if(B.steps.length)bh+=`<details><summary class="note">Show the ${B.steps.length} texture(s) the fix would halve</summary><table><tr><th class="l">Mod</th><th class="l">File</th><th class="l">Type</th><th>Now</th><th>After</th><th>Saves</th></tr>`+B.steps.slice(0,60).map(s=>`<tr><td class="l">${esc(s.mod)}</td><td class="l name" title="${esc(s.asset)}">${esc(s.asset)}</td><td class="l">${s.always?'normal play':'new item'}</td><td>${s.from}px</td><td>${s.to}px</td><td>${sz(s.saves)}</td></tr>`).join('')+'</table>'+(B.steps.length>60?`<p class="note">+${B.steps.length-60} more in the JSON report</p>`:'')+'</details>';
@@ -229,15 +241,15 @@ $('#budget').innerHTML=bh+`<p class="note">How the room for mods is worked out: 
 if(D.history.length||D.managerNotes.length){$('#hist').hidden=false;$('#hist').innerHTML=`<h2>Changes &amp; sources</h2><pre>${esc([...D.managerNotes,...D.history].join('\n'))}</pre>`;}
 const cols=[['priority','#'],['name','Mod','l'],['always','Normal play'],['bar',''],['whenUsed','+ When used'],['textures','Tex'],['meshes','Mesh'],['tris','Tris LOD0'],['overrides','Overrides'],['shadowed','Never loads'],['missing','Missing'],['flagged','Flags']];
 let sortK='always',sortD=-1,open=new Set();
-function groups(){const g=new Map();for(const m of D.mods){const k=m.package||m.name;if(!g.has(k))g.set(k,{name:k,package:m.package,nexusId:m.nexusId,manager:m.manager,priority:m.priority,source:m.source,disk:0,delta:0,always:0,whenUsed:0,textures:0,meshes:0,tris:0,overrides:0,shadowed:0,missing:0,flagged:0,ram:0,assets:[],archives:[]});
- const x=g.get(k);for(const f of['disk','delta','always','whenUsed','textures','meshes','tris','overrides','shadowed','missing','flagged','ram'])x[f]+=m[f]||0;x.assets.push(...m.assets);x.archives.push(m.name);if(m.error)x.error=m.error;}
+function groups(){const g=new Map();for(const m of D.mods){const k=m.package||m.name;if(!g.has(k))g.set(k,{name:k,package:m.package,nexusId:m.nexusId,manager:m.manager,priority:m.priority,source:m.source,excluded:false,disk:0,delta:0,always:0,whenUsed:0,textures:0,meshes:0,tris:0,overrides:0,shadowed:0,missing:0,flagged:0,ram:0,assets:[],archives:[]});
+ const x=g.get(k);for(const f of['disk','delta','always','whenUsed','textures','meshes','tris','overrides','shadowed','missing','flagged','ram'])x[f]+=m[f]||0;x.assets.push(...m.assets);x.archives.push(m.name);if(m.excluded)x.excluded=true;if(m.error)x.error=m.error;}
  for(const x of g.values())x.assets.sort((a,b)=>Math.abs(b.delta)-Math.abs(a.delta));return[...g.values()];}
 function render(){const q=$('#q').value.toLowerCase(),list=$('#grp').checked?groups():D.mods,max=Math.max(1,...list.map(m=>m.always));
  const rows=list.filter(m=>!q||m.name.toLowerCase().includes(q)||(m.package||'').toLowerCase().includes(q)||m.assets.some(a=>a.name.toLowerCase().includes(q))).sort((a,b)=>((a[sortK]>b[sortK]?1:a[sortK]<b[sortK]?-1:0)*sortD)||(b.delta-a.delta));
  let h='<tr>'+cols.map(([k,t,c])=>`<th class="${c||''}" data-k="${k}">${t}${sortK===k?(sortD<0?' ▾':' ▴'):''}</th>`).join('')+'</tr>';
  for(const m of rows){const link=m.nexusId?` · <a href="https://www.nexusmods.com/witcher3/mods/${m.nexusId}" target="_blank" rel="noopener">Nexus #${m.nexusId}</a>`:'';
   const pkg=m.package&&m.package!==m.name&&!(m.source||"").includes(m.package)?` · ${esc(m.manager||'')}: ${esc(m.package)}`:'';
-  h+=`<tr class="mod" data-n="${esc(m.name)}"><td>${m.priority}</td><td class="l">${esc(m.name)}${m.error?` <span class="tag">${esc(m.error)}</span>`:''}<div class="note">${esc(m.source)} · ${sz(m.disk)} on disk${m.archives?` · ${m.archives.length} folder(s)`:pkg}${link}${m.community?` · ${esc(m.community)}`:''}${m.ram>=50*2**20?` · ${sz(m.ram)} other data (system RAM, not VRAM)`:''}</div></td><td class="${m.always<0?'neg':m.always>2**30?'hot':''}">${sz(m.always)}</td><td><div class="bar"><i style="width:${Math.max(0,m.always)/max*100}%"></i></div></td><td class="note">${sz(m.whenUsed)}</td><td>${m.textures}</td><td>${m.meshes}</td><td>${m.tris.toLocaleString()}</td><td>${m.overrides}</td><td>${m.shadowed}</td><td class="${m.missing?'hot':''}">${m.missing}</td><td class="${m.flagged?'hot':''}">${m.flagged}</td></tr>`;
+  h+=`<tr class="mod" data-n="${esc(m.name)}"><td>${m.priority}</td><td class="l">${esc(m.name)}${m.excluded?' <span class="tag dead">kept as is (excluded from the fix)</span>':''}${m.error?` <span class="tag">${esc(m.error)}</span>`:''}<div class="note">${esc(m.source)} · ${sz(m.disk)} on disk${m.archives?` · ${m.archives.length} folder(s)`:pkg}${link}${m.community?` · ${esc(m.community)}`:''}${m.ram>=50*2**20?` · ${sz(m.ram)} other data (system RAM, not VRAM)`:''}</div></td><td class="${m.always<0?'neg':m.always>2**30?'hot':''}">${sz(m.always)}</td><td><div class="bar"><i style="width:${Math.max(0,m.always)/max*100}%"></i></div></td><td class="note">${sz(m.whenUsed)}</td><td>${m.textures}</td><td>${m.meshes}</td><td>${m.tris.toLocaleString()}</td><td>${m.overrides}</td><td>${m.shadowed}</td><td class="${m.missing?'hot':''}">${m.missing}</td><td class="${m.flagged?'hot':''}">${m.flagged}</td></tr>`;
   if(open.has(m.name)){h+=`<tr class="detail"><td colspan="${cols.length}"><table><tr><th class="l">File</th><th class="l">Kind</th><th>Size</th><th>GPU</th><th>+VRAM</th><th class="l">Notes</th></tr>`+
    m.assets.slice(0,60).map(a=>`<tr><td class="l name" title="${esc(a.name)}">${esc(a.name)}</td><td class="l">${esc(a.class||a.kind)}</td><td>${a.kind==='Texture'?`${a.w}×${a.h}${a.shown&&a.shown<Math.max(a.w,a.h)?` (shown at ${a.shown})`:''} ${a.mips}mip ${esc(a.fmt||'')}`:a.kind==='Mesh'?`${a.tris.toLocaleString()} tris · ${a.lods} LOD`:''}</td><td>${sz(a.gpu)}</td><td class="${a.delta<0?'neg':''}">${sz(a.delta)}</td><td class="l">${a.gpu===0&&a.ram>0?`<span class="tag dead">${sz(a.ram)} in system RAM, not VRAM</span>`:''}${a.override?'<span class="tag dead">replaces a game file</span>':a.always?'<span class="tag dead">used by a replaced file</span>':'<span class="tag dead">new item</span>'}${a.flags.map(f=>`<span class="tag ${a.shadowedBy?'dead':''}">${esc(f)}</span>`).join('')}</td></tr>`).join('')+
    `</table>${m.assets.length>60?`<p class="note">${m.assets.length-60} more in the JSON report</p>`:''}</td></tr>`;}}
