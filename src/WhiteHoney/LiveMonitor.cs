@@ -67,14 +67,36 @@ public static class LiveMonitor
         public void Dispose() => PdhCloseQuery(_q);
     }
 
+    /// <summary>One reading: the game's VRAM now, its highest so far, and the whole card's use.</summary>
+    public sealed record Sample(TimeSpan Elapsed, long Game, long Peak, long GpuTotal);
+
+    /// <summary>What the front end does while a measurement runs. Every hook is called on the measuring thread.</summary>
+    public sealed class Hooks
+    {
+        /// <summary>Checked about once a second; return true to end the measurement.</summary>
+        public Func<bool> Stop = () => false;
+        /// <summary>The counters are ready and the game isn't running yet: (process name).</summary>
+        public Action<string>? Waiting;
+        /// <summary>The game was found and measuring starts: (what is measured, e.g. "witcher3.exe (pid 1234)").</summary>
+        public Action<string>? Started;
+        public Action<Sample>? Sampled;
+    }
+
+    /// <param name="GameSeen">False when the measurement was stopped before the game was running.</param>
+    /// <param name="Session">The finished measurement; null when no reading was taken.</param>
+    /// <param name="History">Every saved measurement, this one last.</param>
+    public sealed record Outcome(bool GameSeen, Session? Session, string? CsvPath, List<Session> History);
+
+    /// <summary>
+    /// Waits for the game, records its dedicated VRAM once a second until it closes (or <see cref="Hooks.Stop"/>, or
+    /// <paramref name="seconds"/> have passed), and adds the session to White-Honey-Live.json in <paramref name="outDir"/>.
+    /// </summary>
     /// <param name="samplesIn">
     /// Linux: "3 - Measure VRAM in game.sh" waits for the game itself (Wine can't see Proton's processes) and pipes one
     /// "&lt;game VRAM bytes&gt; &lt;GPU total bytes&gt;" line per second; the session ends when the pipe closes.
     /// </param>
-    public static int Run(string processName, string label, int seconds, string outDir, bool budgetArchiveActive, TextReader? samplesIn = null)
+    public static Outcome Measure(string processName, string label, int seconds, string outDir, bool budgetArchiveActive, Hooks hooks, TextReader? samplesIn = null)
     {
-        bool stop = false;
-        Console.CancelKeyPress += (_, e) => { e.Cancel = true; stop = true; };
         Query? q = null;
         Func<(long Process, long Adapter)?> next;
         string what;
@@ -93,13 +115,12 @@ public static class LiveMonitor
         }
         else
         {
-            if (Platform.IsWine) { Console.Error.WriteLine("On Linux, measure with \"3 - Measure VRAM in game.sh\" in the Linux folder."); return 2; }
-            if (!OperatingSystem.IsWindows()) { Console.Error.WriteLine("Live monitoring needs Windows."); return 2; }
+            if (Platform.IsWine || !OperatingSystem.IsWindows()) throw new PlatformNotSupportedException("Live monitoring needs Windows.");
             q = new Query();
-            Console.WriteLine($"Waiting for {processName}.exe ... (Ctrl+C to stop)");
+            hooks.Waiting?.Invoke(processName);
             Process? p = null;
-            while (!stop && (p = Process.GetProcessesByName(processName).FirstOrDefault()) == null) Thread.Sleep(1000);
-            if (p == null) { q.Dispose(); return 1; }
+            while (!hooks.Stop() && (p = Process.GetProcessesByName(processName).FirstOrDefault()) == null) Thread.Sleep(1000);
+            if (p == null) { q.Dispose(); return new Outcome(false, null, null, LoadSessions(outDir)); }
             var game = p;
             what = $"{processName}.exe (pid {game.Id})";
             next = () =>
@@ -117,21 +138,20 @@ public static class LiveMonitor
         using var csv = new StreamWriter(csvPath);
         csv.WriteLine("seconds,process_dedicated_bytes,adapter_dedicated_bytes");
         var samples = new List<long>();
-        long adapterPeak = 0;
+        long adapterPeak = 0, peak = 0;
         var sw = Stopwatch.StartNew();
-        Console.WriteLine($"Measuring {what} as \"{label}\"{(budgetArchiveActive ? " [budget fix active]" : "")}. Play normally; stop with Ctrl+C or by closing the game.");
-        while (!stop && (seconds <= 0 || sw.Elapsed.TotalSeconds < seconds) && next() is { } sample)
+        hooks.Started?.Invoke(what);
+        while (!hooks.Stop() && (seconds <= 0 || sw.Elapsed.TotalSeconds < seconds) && next() is { } sample)
         {
             var (proc, adapter) = sample;
             if (proc <= 0) continue;
             samples.Add(proc);
+            peak = Math.Max(peak, proc);
             adapterPeak = Math.Max(adapterPeak, adapter);
             csv.WriteLine($"{sw.Elapsed.TotalSeconds:0},{proc},{adapter}");
-            if (!Console.IsOutputRedirected)
-                Console.Write($"\r  {sw.Elapsed:hh\\:mm\\:ss}  game VRAM {Report.Size(proc),9}  peak {Report.Size(samples.Max()),9}  GPU total {Report.Size(adapter),9}   ");
+            hooks.Sampled?.Invoke(new Sample(sw.Elapsed, proc, peak, adapter));
         }
-        Console.WriteLine();
-        if (samples.Count == 0) { Console.WriteLine("No samples collected."); return 1; }
+        if (samples.Count == 0) return new Outcome(true, null, csvPath, LoadSessions(outDir));
 
         var sorted = samples.OrderBy(x => x).ToList();
         var session = new Session(label, start, sw.Elapsed.TotalSeconds, sorted[^1], sorted[Math.Min(sorted.Count - 1, (int)(sorted.Count * 0.95))],
@@ -139,11 +159,46 @@ public static class LiveMonitor
         var history = LoadSessions(outDir);
         history.Add(session);
         SaveSessions(outDir, history);
+        return new Outcome(true, session, csvPath, history);
+    }
 
-        Console.WriteLine($"Session \"{label}\": {samples.Count} samples, peak {Report.Size(session.Peak)}, 95th pct {Report.Size(session.P95)}, steady (last 60 s) {Report.Size(session.Steady)}");
-        Console.WriteLine($"CSV: {Platform.Shown(csvPath)}");
-        PrintComparison(history);
+    /// <summary>The console front end of <see cref="Measure"/> ("3 - Measure VRAM in game").</summary>
+    public static int Run(string processName, string label, int seconds, string outDir, bool budgetArchiveActive, TextReader? samplesIn = null)
+    {
+        bool stop = false;
+        Console.CancelKeyPress += (_, e) => { e.Cancel = true; stop = true; };
+        if (samplesIn == null)
+        {
+            if (Platform.IsWine) { Console.Error.WriteLine("On Linux, measure with \"3 - Measure VRAM in game.sh\" in the Linux folder."); return 2; }
+            if (!OperatingSystem.IsWindows()) { Console.Error.WriteLine("Live monitoring needs Windows."); return 2; }
+        }
+        var result = Measure(processName, label, seconds, outDir, budgetArchiveActive, new Hooks
+        {
+            Stop = () => stop,
+            Waiting = name => Console.WriteLine($"Waiting for {name}.exe ... (Ctrl+C to stop)"),
+            Started = what => Console.WriteLine($"Measuring {what} as \"{label}\"{(budgetArchiveActive ? " [budget fix active]" : "")}. Play normally; stop with Ctrl+C or by closing the game."),
+            Sampled = s =>
+            {
+                if (!Console.IsOutputRedirected)
+                    Console.Write($"\r  {s.Elapsed:hh\\:mm\\:ss}  game VRAM {Report.Size(s.Game),9}  peak {Report.Size(s.Peak),9}  GPU total {Report.Size(s.GpuTotal),9}   ");
+            },
+        }, samplesIn);
+        if (!result.GameSeen) return 1;
+        Console.WriteLine();
+        if (result.Session is not { } session) { Console.WriteLine("No samples collected."); return 1; }
+
+        Console.WriteLine($"Session \"{label}\": {session.Samples} samples, peak {Report.Size(session.Peak)}, 95th pct {Report.Size(session.P95)}, steady (last 60 s) {Report.Size(session.Steady)}");
+        Console.WriteLine($"CSV: {Platform.Shown(result.CsvPath!)}");
+        PrintComparison(result.History);
         return 0;
+    }
+
+    /// <summary>"Change vs "before": peak -1.2 GB, steady -1.0 GB (...)", comparing the last two measurements; null with fewer than two.</summary>
+    public static string? ChangeLine(List<Session> history)
+    {
+        if (history.Count < 2) return null;
+        var a = history[^2]; var b = history[^1];
+        return $"Change vs \"{a.Label}\": peak {Report.Size(b.Peak - a.Peak)}, steady {Report.Size(b.Steady - a.Steady)} (load the same save and stand still for the fairest comparison)";
     }
 
     public static void PrintComparison(List<Session> history)
@@ -153,8 +208,7 @@ public static class LiveMonitor
         Console.WriteLine($"{"Session",-22} {"When",-17} {"Peak",10} {"95th pct",10} {"Steady",10}  Budget fix");
         foreach (var s in history.TakeLast(6))
             Console.WriteLine($"{s.Label,-22} {s.Start,-17:yyyy-MM-dd HH:mm} {Report.Size(s.Peak),10} {Report.Size(s.P95),10} {Report.Size(s.Steady),10}  {(s.BudgetArchive ? "yes" : "no")}");
-        var a = history[^2]; var b = history[^1];
-        Console.WriteLine($"Change vs \"{a.Label}\": peak {Report.Size(b.Peak - a.Peak)}, steady {Report.Size(b.Steady - a.Steady)} (load the same save and stand still for the fairest comparison)");
+        Console.WriteLine(ChangeLine(history));
     }
 
     static string SessionsPath(string dir) => Path.Combine(dir, "White-Honey-Live.json");

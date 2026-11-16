@@ -129,6 +129,21 @@ public sealed class ModManagers
         return all.Count == 1 ? all[0] : null;
     }
 
+    /// <summary>MO2 runs tools through its virtual file system (usvfs); new files then land in "Overwrite".</summary>
+    public static bool UnderMo2()
+    {
+        try { return System.Diagnostics.Process.GetCurrentProcess().Modules.Cast<System.Diagnostics.ProcessModule>().Any(m => m.ModuleName.StartsWith("usvfs", StringComparison.OrdinalIgnoreCase)); }
+        catch { return false; }
+    }
+
+    /// <summary>The MO2 folder for a path the player picked or pasted (the folder, or the ModOrganizer.ini in it); null when it doesn't exist.</summary>
+    public static string? Mo2InstanceFrom(string? picked)
+    {
+        if (string.IsNullOrEmpty(picked)) return null;
+        if (File.Exists(picked) && Path.GetFileName(picked).Equals("ModOrganizer.ini", StringComparison.OrdinalIgnoreCase)) picked = Path.GetDirectoryName(picked)!;
+        return Directory.Exists(picked) ? picked : null;
+    }
+
     /// <summary>Every Witcher 3 MO2 instance in the default location, whatever game path it points at.</summary>
     public static List<string> AllMo2Instances() => FindMo2Instances("");
 

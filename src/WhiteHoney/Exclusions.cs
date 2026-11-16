@@ -84,4 +84,39 @@ public static class Exclusions
         }
         catch { return false; }
     }
+
+    /// <summary>
+    /// Takes <paramref name="mod"/> off the list: every entry that matches it is removed. When such an entry also
+    /// covered other installed mods (a * pattern, or a mod manager name shared by several folders), those are written
+    /// back by folder name, so they stay excluded. Comments and other lines are kept. Returns false when the file
+    /// can't be written.
+    /// </summary>
+    public static bool Remove(string path, ModReport mod, IEnumerable<ModReport> allMods)
+    {
+        try
+        {
+            if (!File.Exists(path)) return true;
+            static string Entry(string line) => line.Trim().TrimStart('﻿').Trim();
+            var lines = File.ReadAllLines(path).ToList();
+            var others = allMods.Where(m => !ReferenceEquals(m, mod)).ToList();
+            var kept = new List<string>();
+            var stillExcluded = new List<string>();
+            bool changed = false;
+            foreach (var line in lines)
+            {
+                var e = Entry(line);
+                if (e.Length == 0 || e.StartsWith('#') || !Matches(e, mod)) { kept.Add(line); continue; }
+                changed = true;
+                stillExcluded.AddRange(others.Where(m => Matches(e, m)).Select(m => m.Name));
+            }
+            if (!changed) return true;
+            var have = kept.Select(Entry).Where(e => e.Length > 0 && !e.StartsWith('#')).ToList();
+            foreach (var name in stillExcluded.Distinct(StringComparer.OrdinalIgnoreCase))
+                if (!others.Where(m => m.Name.Equals(name, StringComparison.OrdinalIgnoreCase)).All(m => have.Any(e => Matches(e, m))))
+                    kept.Add(name);
+            File.WriteAllLines(path, kept);
+            return true;
+        }
+        catch { return false; }
+    }
 }

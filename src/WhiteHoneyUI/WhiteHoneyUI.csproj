@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- WinExe: no console window. The window is the player's browser in app mode, served from inside this exe. -->
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <AssemblyName>WhiteHoneyUI</AssemblyName>
+    <RootNamespace>WhiteHoney.UI</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- Numbers must format like the console tool's. -->
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <PublishTrimmed>true</PublishTrimmed>
+    <!-- Off: a self-extracting compressed bundle looks like a packed executable to antivirus heuristics. -->
+    <EnableCompressionInSingleFile>false</EnableCompressionInSingleFile>
+    <DebugType>none</DebugType>
+    <Product>White Honey - VRAM Optimizer</Product>
+    <Company>La2o</Company>
+    <Description>Window for White Honey: ranks The Witcher 3 texture and mesh mods by the VRAM they add and applies the budget fix.</Description>
+    <!-- One place to bump the version: the console tool's project. -->
+    <Version>$([System.Text.RegularExpressions.Regex]::Match($([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)..\WhiteHoney\WhiteHoney.csproj')), '&lt;Version&gt;([^&lt;]+)&lt;').Groups[1].Value)</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The engine is shared with the console tool, not copied. Its Program.cs is the console front end. -->
+    <Compile Include="..\WhiteHoney\*.cs" Exclude="..\WhiteHoney\Program.cs" Link="Engine\%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The whole page: one self-contained file, served from memory. -->
+    <EmbeddedResource Include="index.html" LogicalName="index.html" />
+  </ItemGroup>
+</Project>

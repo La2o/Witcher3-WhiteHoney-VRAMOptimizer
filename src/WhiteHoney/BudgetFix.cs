@@ -17,6 +17,9 @@ public static class BudgetFix
     /// </summary>
     public const string ManifestName = "white_honey_fix.json";
 
+    /// <summary>Name of the MO2 mod folder the fix is saved as when run through Mod Organizer 2.</summary>
+    public const string Mo2FixModName = "White Honey Budget Fix";
+
     /// <summary>
     /// Whether a fix still matches the installed mods. Changed: the mod's copy of a texture is different now (the mod
     /// was updated, or another mod now wins), so the fix shows an old version. Removed: no installed mod has that
@@ -116,7 +119,7 @@ public static class BudgetFix
     {
         var dirs = new List<string>();
         void Add(string? d) { if (d != null && !dirs.Contains(d, StringComparer.OrdinalIgnoreCase)) dirs.Add(d); }
-        static string FixMod(string modsDir) => System.IO.Path.Combine(modsDir, Program.Mo2FixModName, "mods");
+        static string FixMod(string modsDir) => System.IO.Path.Combine(modsDir, Mo2FixModName, "mods");
         Add(savedFixDir);
         foreach (var inst in mo2Instances.Append(ModManagers.Mo2InstanceAround(toolDir)).OfType<string>().Distinct(StringComparer.OrdinalIgnoreCase))
         {
@@ -130,6 +133,15 @@ public static class BudgetFix
     /// <summary>Rough size of the fix: the mips that are kept, at the size they have on disk in the mod.</summary>
     public static long EstimateBytes(IEnumerable<PlanStep> steps) => steps.Sum(s =>
         (long)((s.Asset.GpuBytes >> (2 * s.Halvings)) * Math.Clamp(s.Asset.FullGpuBytes > 0 ? (double)s.Asset.DiskBytes / s.Asset.FullGpuBytes : 1, 0.05, 1.0)));
+
+    /// <summary>"About 240 MB to write, under a minute": copying compressed mips is fast (~400 MB/s of fix data on an SSD).</summary>
+    public static string DescribeWork(IReadOnlyCollection<PlanStep> steps)
+    {
+        long bytes = EstimateBytes(steps);
+        double seconds = bytes / (400.0 * (1 << 20)) + steps.Count * 0.002;
+        string time = seconds < 60 ? "under a minute" : $"roughly {Math.Ceiling(seconds / 60)} minute(s)";
+        return $"About {Report.Size(bytes)} to write, {time}.";
+    }
 
     /// <summary>Live state of a build, read by the UI thread without blocking the work.</summary>
     public sealed class BuildStatus
@@ -263,18 +275,20 @@ public static class BudgetFix
     /// Deletes the fix folder from the game's mods folder and from <paramref name="extraDirs"/>
     /// (see <see cref="KnownFixDirs"/>), and its entry in mods.settings. Returns the folders removed.
     /// </summary>
-    public static List<string> Remove(string modRoot, bool quiet = false, IEnumerable<string>? extraDirs = null, string? modsSettings = null)
+    /// <param name="say">Where the lines about each folder go unless <paramref name="quiet"/>; the console by default.</param>
+    public static List<string> Remove(string modRoot, bool quiet = false, IEnumerable<string>? extraDirs = null, string? modsSettings = null, Action<string>? say = null)
     {
+        say ??= Console.WriteLine;
         var removed = new List<string>();
         foreach (var dir in (extraDirs ?? Enumerable.Empty<string>()).Prepend(System.IO.Path.Combine(modRoot, "mods")).Distinct(StringComparer.OrdinalIgnoreCase))
             foreach (var f in FixFoldersIn(dir).ToList())
             {
                 // Only ever delete a folder that holds nothing but our own files.
                 var files = Directory.GetFiles(f, "*", SearchOption.AllDirectories);
-                if (files.Any(x => !IsOurFile(x))) { if (!quiet) Console.WriteLine($"Left alone (it has other files in it): {f}"); continue; }
+                if (files.Any(x => !IsOurFile(x))) { if (!quiet) say($"Left alone (it has other files in it): {f}"); continue; }
                 Directory.Delete(f, recursive: true);
                 removed.Add(f);
-                if (!quiet) Console.WriteLine($"Removed {f}");
+                if (!quiet) say($"Removed {f}");
             }
         if (modsSettings != null && File.Exists(modsSettings))
             try

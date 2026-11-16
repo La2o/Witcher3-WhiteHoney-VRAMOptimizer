@@ -1,6 +1,6 @@
 # White Honey - VRAM Optimizer
 
-**Find out which of your Witcher 3 texture and mesh mods are eating your VRAM, fix the worst offenders with one command, and measure the result in-game.**
+**Find out which of your Witcher 3 texture and mesh mods are eating your VRAM, fix the worst offenders with one click or one command, and measure the result in-game.**
 
 In the game, White Honey clears the toxicity out of Geralt's blood. This one clears it out of your video memory.
 
@@ -35,13 +35,32 @@ Extract the zip anywhere, for example into your Witcher 3 folder (the one that c
 
 Download it manually rather than through a mod manager: it is a tool you run, not a game mod, and installing it through Vortex or Mod Organizer 2 has not been tested.
 
-Requirements: Windows 10/11 x64. No .NET install is needed (the exe is self-contained), and nothing from the game is needed to read its files.
+Requirements: Windows 10/11 x64. No .NET install is needed (both exes are self-contained), and nothing from the game is needed to read its files. The window (`WhiteHoneyUI.exe`) shows its page in Microsoft Edge, which Windows 10 and 11 include; without Edge it uses Chrome or your default browser.
 
-**"WhiteHoney.exe is missing" or "is not recognized as an internal or external command":** your antivirus most likely removed the exe. Restore it from Windows Security > Virus & threat protection > Protection history (*Restore* or *Allow on device*), or download the zip again and unpack all of it.
+**"WhiteHoney.exe is missing", "is not recognized as an internal or external command", or `WhiteHoneyUI.exe` has disappeared:** your antivirus most likely removed the exe. Restore it from Windows Security > Virus & threat protection > Protection history (*Restore* or *Allow on device*), or download the zip again and unpack all of it.
 
 ## Use
 
-Open the `White Honey` folder and double-click the numbered shortcuts (`START HERE.txt` explains them):
+There are two ways to use it, and they do the same things: a window, or the numbered shortcuts that run in a console window. Use whichever you like; they share the same reports, the same budget fix and the same list of excluded mods.
+
+### The window
+
+Open the `White Honey` folder and double-click `WhiteHoneyUI.exe`.
+
+![White Honey window](docs/window.png)
+
+- **Game folder:** found by itself for Steam, GOG and Epic. If not, press *Browse...* or paste the folder and press *Use this folder*. It is remembered.
+- **Scan my mods:** reads your mods (changes nothing) and fills the list, heaviest first. Click a column header to sort. The summary above the list says how much VRAM your mods add, how much room your card has for mods, and whether they fit.
+- **Fix may trim:** one checkbox per mod. Untick a mod to keep it out of the budget fix. The choice is saved at once in `White Honey - Excluded mods.txt`, the same file the shortcuts use.
+- **Budget fix:** shows what the fix would do with your current choices (how many textures, the VRAM saving, the size on disk), and whether to leave new armor, weapons and other added content alone or shrink their textures to 2K or 1K. *Apply budget fix* asks once, then writes the one extra mod folder. *Undo budget fix* removes it. If you untick a mod that is already in an applied fix, or update or remove a mod, the panel says the fix is out of date.
+- **Open full report:** opens the same `White-Honey-Report.html` the scan shortcut makes.
+- **Measure real VRAM:** type a name (for example *before*), press *Measure VRAM in game*, start the game and play; close the game or press *Stop measuring* to finish. The table compares your last measurements.
+
+The window is a page shown in an app-style Microsoft Edge window (Chrome or your default browser if Edge is missing). The page comes from `WhiteHoneyUI.exe` on your own PC, on a local address only this PC can reach (`127.0.0.1`), and nothing is sent anywhere. Close the window and the tool closes a few seconds later. If the window is only in the background while you play, the tool keeps running.
+
+### The shortcuts
+
+Double-click the numbered shortcuts (`START HERE.txt` explains them):
 
 | Shortcut | What it does |
 |---|---|
@@ -78,6 +97,8 @@ Everything is also available from the command line:
 
 ### A typical session
 
+The steps below use the shortcuts; the buttons in the window do the same.
+
 1. Run `1 - Scan my mods`. Check the report: the top rows are your heaviest mods, and the red counts are flags worth reading.
 2. Load a save and stand somewhere busy, then run `3 - Measure VRAM in game` and name it *before*. Play a minute and close the game.
 3. Run `2 - Apply budget fix`.
@@ -86,7 +107,7 @@ Everything is also available from the command line:
 
 ### Keeping mods out of the fix
 
-`2 - Apply budget fix` first shows a numbered list of the mods the fix would touch, with how many textures and how much VRAM each. Type the numbers of the mods to leave untouched (for example `1,3`), or press Enter to trim them all. It then asks whether to remember your choice for next time.
+In the window, untick the mod's *Fix may trim* checkbox. With the shortcuts, `2 - Apply budget fix` first shows a numbered list of the mods the fix would touch, with how many textures and how much VRAM each. Type the numbers of the mods to leave untouched (for example `1,3`), or press Enter to trim them all. It then asks whether to remember your choice for next time.
 
 Remembered choices are kept in `White Honey - Excluded mods.txt` next to the tool. The first scan creates it, with instructions inside. Put one mod per line: its folder name in the game's `mods` folder (for example `modHDReworkedProject`) or its name in Vortex or Mod Organizer 2. A `*` matches anything (`mod*Geralt*`), and lines starting with `#` are notes. Edit it in Notepad whenever you like.
 
@@ -132,6 +153,19 @@ All three runs loaded the same save and stood in the same room; VRAM is the stea
 - The save files were byte-identical after the tests.
 - Not tested yet: a fix built from a real Nexus texture mod made for game 4.x or older (cache version 6, old bundle layout). Those files are read by the same code with the published layout, but no such mod was at hand to check against.
 
+### The window: what was tested (0.3.0)
+
+On Windows 11 with Microsoft Edge, on the test mods that `--make-fixtures` builds (the game on the test PC has no mods installed):
+
+- Scan, sorting, and the summary: same numbers as the console tool.
+- Unticking and ticking a mod: the plan changes and `White Honey - Excluded mods.txt` is updated at once.
+- Apply (with its Yes/No question; No writes nothing) and Undo: the fix folder and its `mods.settings` entry are written and removed, and the fix is byte for byte the one the console tool writes for the same plan.
+- The out-of-date warning after unticking a mod that is in the applied fix.
+- Open full report, the folder picker, a wrong game folder, and closing the window (the tool quits about 4 seconds later).
+- Measuring: started, stopped and compared in the window, but against another running program standing in for the game.
+
+Not tested yet in the window: a real modlist, measuring with the game itself running, the Mod Organizer 2 question and saving the fix as an MO2 mod, running without Edge (Chrome or default browser), and Windows 10.
+
 ## How the scan works
 
 1. Reads the game's load order: folders in `mods` whose name starts with `mod`, by `mods.settings` priority where set, then by name (the first mod wins a conflict). Then DLC-style mods in `dlc`, Steam Workshop subscriptions, and MO2 mods that live outside the game folder.
@@ -159,12 +193,15 @@ Validation on real game data (Remastered 5.01c):
 
 ```
 dotnet publish src/WhiteHoney -c Release -o dist/bin
+dotnet publish src/WhiteHoneyUI -c Release -o dist/bin-ui
 ```
 
 Or run `build.ps1` to also make the Nexus/Vortex-ready zip.
 
+`src/WhiteHoney` is the console tool and the engine. `src/WhiteHoneyUI` is the window: it compiles the same engine files (everything but the console `Program.cs`), serves one HTML page (`index.html`) from a small HTTP server bound to `127.0.0.1`, and opens it in an app-style browser window. Every request must carry a random token made at start, so other web pages can't drive the tool. The version number lives in `src/WhiteHoney/WhiteHoney.csproj` for both.
+
 Developer self-tests:
-- `--make-fixtures <dir>` builds fake mods from real game files: a heavy retexture, conflicts, mods.settings priorities, new items, a broken reference, corrupt files, Vortex and MO2. Scan them with `--mod-root <dir> --mo2 <dir>\_mo2`.
+- `--make-fixtures <dir>` builds fake mods from real game files: a heavy retexture, conflicts, mods.settings priorities, new items, a broken reference, corrupt files, Vortex and MO2. Scan them with `--mod-root <dir> --mo2 <dir>\_mo2` (`WhiteHoneyUI.exe` takes the same two options, so the window can be tried on them without touching the game).
 - `--verify-cache <texture.cache>` checks that textures split into mips as expected and every block inflates.
 - `--verify-shrink <texture.cache>` shrinks textures, writes them to a new cache and compares them with the source's smaller mips.
 - `--vanilla-check` runs the bundle, mesh and reference readers over the game's own files.

@@ -1,6 +1,4 @@
 using System.Diagnostics;
-using System.Text.RegularExpressions;
-using Microsoft.Win32;
 using WhiteHoney;
 
 const string Usage = """
@@ -62,11 +60,11 @@ if (opts.TryGetValue("verify-cache", out var verifyCache) && verifyCache != null
 if (opts.TryGetValue("verify-shrink", out var shrinkCache) && shrinkCache != null)
     return DevTools.VerifyShrink(shrinkCache, int.Parse(opts.GetValueOrDefault("samples") ?? "300"));
 if (opts.ContainsKey("vanilla-check"))
-    return DevTools.VanillaCheck(FindGame(opts.GetValueOrDefault("game")) ?? throw new Exception("game not found"), int.Parse(opts.GetValueOrDefault("every") ?? "1"));
+    return DevTools.VanillaCheck(GameFinder.Find(opts.GetValueOrDefault("game")) ?? throw new Exception("game not found"), int.Parse(opts.GetValueOrDefault("every") ?? "1"));
 if (opts.TryGetValue("make-fixtures", out var fixturesOut) && fixturesOut != null)
-    return Fixtures.Make(FindGame(opts.GetValueOrDefault("game")) ?? throw new Exception("game not found"), fixturesOut);
+    return Fixtures.Make(GameFinder.Find(opts.GetValueOrDefault("game")) ?? throw new Exception("game not found"), fixturesOut);
 if (opts.TryGetValue("ingame-test", out var ingameCount) && ingameCount != null)
-    return Fixtures.MakeIngameTest(FindGame(opts.GetValueOrDefault("game")) ?? throw new Exception("game not found"),
+    return Fixtures.MakeIngameTest(GameFinder.Find(opts.GetValueOrDefault("game")) ?? throw new Exception("game not found"),
         opts.GetValueOrDefault("to") ?? throw new Exception("--to <mods dir> is required"), int.Parse(ingameCount), opts.GetValueOrDefault("filter"), int.Parse(opts.GetValueOrDefault("halvings") ?? "1"));
 
 var outDir = opts.GetValueOrDefault("out") ?? AppContext.BaseDirectory;
@@ -74,16 +72,16 @@ bool quiet = opts.ContainsKey("json");
 void Log(string s) { if (!quiet) Console.Error.WriteLine(s); }
 
 // Remember folders the user gave us once (game, MO2), so the shortcuts keep working.
-var settingsFile = Path.Combine(AppContext.BaseDirectory, "WhiteHoney.ini");
+var settingsFile = ToolSettings.DefaultPath;
 
 // The tool doesn't have to live inside the game folder: it can be unzipped anywhere.
-var game = FindGame(opts.GetValueOrDefault("game"), ReadSetting(settingsFile, "game"));
+var game = GameFinder.Find(opts.GetValueOrDefault("game"), ToolSettings.Read(settingsFile, "game"));
 if (game == null && !quiet && (!Console.IsInputRedirected || opts.ContainsKey("ask-game"))) // --ask-game: test hook
 {
     game = AskForGame();
     if (game != null)
     {
-        WriteSetting(settingsFile, "game", game);
+        ToolSettings.Write(settingsFile, "game", game);
         Console.WriteLine("Saved: next time your game is found automatically.");
     }
 }
@@ -96,32 +94,31 @@ if (game == null)
 var modRoot = opts.GetValueOrDefault("mod-root") ?? game;
 var modsSettings = opts.GetValueOrDefault("mods-settings") ?? (opts.ContainsKey("mod-root") ? Path.Combine(modRoot, "mods.settings") : Scanner.DefaultModsSettings);
 
-var mo2 = opts.GetValueOrDefault("mo2") ?? ReadSetting(settingsFile, "mo2");
-// Where an MO2 user's fix was saved last time (a real MO2 mod folder, outside the virtual game folder).
-var savedFixDir = ReadSetting(settingsFile, "fixdir");
-// Everywhere else a fix can be, so Undo finds it however it was made.
-var fixDirs = BudgetFix.KnownFixDirs(savedFixDir,
-    new[] { mo2, ModManagers.RunningMo2Instance() }.Concat(ModManagers.AllMo2Instances()), AppContext.BaseDirectory);
+var ws = new Workspace(game, settingsFile, opts.GetValueOrDefault("mod-root"), modsSettings, opts.GetValueOrDefault("mo2"))
+{
+    UserSettingsFile = Platform.FromUser(opts.GetValueOrDefault("settings")),
+    CompareVanilla = !opts.ContainsKey("no-vanilla"),
+};
 
 if (opts.ContainsKey("remove-budget-fix"))
 {
-    var removed = BudgetFix.Remove(modRoot, extraDirs: fixDirs, modsSettings: modsSettings);
+    var removed = ws.RemoveFix();
     if (removed.Count > 0)
     {
         Console.WriteLine("The budget fix was removed. Everything is back as it was.");
-        if (removed.Any(f => f.Contains(Mo2FixModName, StringComparison.OrdinalIgnoreCase)))
-            Console.WriteLine("(In Mod Organizer 2 you can now also delete the empty \"" + Mo2FixModName + "\" mod.)");
+        if (removed.Any(f => f.Contains(BudgetFix.Mo2FixModName, StringComparison.OrdinalIgnoreCase)))
+            Console.WriteLine("(In Mod Organizer 2 you can now also delete the empty \"" + BudgetFix.Mo2FixModName + "\" mod.)");
     }
     else
     {
         Console.WriteLine("No budget fix found, so there was nothing to remove.");
-        Console.WriteLine("(Mod Organizer 2: if a \"" + Mo2FixModName + "\" mod is still in MO2's list, untick or delete it there.)");
+        Console.WriteLine("(Mod Organizer 2: if a \"" + BudgetFix.Mo2FixModName + "\" mod is still in MO2's list, untick or delete it there.)");
     }
     return 0;
 }
 if (opts.ContainsKey("live"))
     return LiveMonitor.Run(opts.GetValueOrDefault("process") ?? "witcher3", opts.GetValueOrDefault("label") ?? "session",
-        int.TryParse(opts.GetValueOrDefault("seconds"), out var secs) ? secs : 0, outDir, BudgetFix.FindExisting(modRoot, fixDirs) != null,
+        int.TryParse(opts.GetValueOrDefault("seconds"), out var secs) ? secs : 0, outDir, ws.ExistingFix() != null,
         samplesIn: opts.GetValueOrDefault("samples") == "-" ? Console.In : null);
 
 Log($"White Honey v{Report.Version} - scanning {Platform.Shown(game)}");
@@ -142,33 +139,21 @@ void ShowProgress(int done, int total)
     }
 }
 
-ScanResult Scan(string? mo2Instance) => new Scanner(new ScanOptions
-{
-    GameDir = game,
-    ModRoot = opts.GetValueOrDefault("mod-root"),
-    Mo2Instance = mo2Instance,
-    ModsSettings = modsSettings,
-    SettingsFile = Platform.FromUser(opts.GetValueOrDefault("settings")),
-    CompareVanilla = !opts.ContainsKey("no-vanilla"),
-    Log = Log,
-    Progress = ShowProgress,
-}).Scan();
-
 ScanResult result;
 try
 {
-    result = Scan(mo2);
+    result = ws.Scan(ws.Mo2, Log, ShowProgress);
     // Nothing found in the game folder: MO2 keeps mods outside it. Ask once, then remember.
-    if (result.Mods.Count == 0 && mo2 == null && interactive && opts.GetValueOrDefault("mod-root") == null && !UnderMo2() && ModManagers.AllMo2Instances().Count > 0)
+    if (interactive && ws.WorthAskingForMo2(result))
     {
         var picked = AskForMo2();
         if (picked != null)
         {
             lastPct = -1;
-            result = Scan(picked);
+            result = ws.Scan(picked, Log, ShowProgress);
             if (result.Mods.Count > 0)
             {
-                WriteSetting(settingsFile, "mo2", picked);
+                ws.RememberMo2(picked);
                 Console.WriteLine("Saved: next time your MO2 mods are found automatically.");
             }
             else Console.WriteLine("No mods found there either. Pick the folder that contains ModOrganizer.ini.");
@@ -182,24 +167,9 @@ catch (Exception ex)
     return 1;
 }
 
-if (opts.TryGetValue("vram", out var vramArg) && double.TryParse(vramArg, System.Globalization.CultureInfo.InvariantCulture, out var vramGb) && vramGb > 0)
-    result.Gpu = new GpuInfo(opts.GetValueOrDefault("gpu") ?? result.Gpu?.Name ?? "GPU", (long)(vramGb * (1L << 30)));
-
-long budget;
-if (opts.TryGetValue("budget", out var b) && double.TryParse(b, System.Globalization.CultureInfo.InvariantCulture, out var gb))
-{
-    budget = (long)(gb * (1L << 30));
-    result.BudgetWhy = "set with --budget";
-}
-else (budget, result.BudgetWhy) = GpuInfo.SuggestBudget(result.Gpu?.VramBytes ?? 8L << 30, result.Settings);
-// Mods the player wants left alone: the list file next to the tool (made on first run) plus --exclude for this run.
-var excludeFile = Platform.FromUser(opts.GetValueOrDefault("exclude-file")) ?? Exclusions.DefaultPath;
-if (!quiet) Exclusions.EnsureFile(excludeFile);
-result.ExcludeFile = excludeFile;
-foreach (var unmatched in Exclusions.Apply(result.Mods, Exclusions.Load(excludeFile).Concat(Exclusions.Parse(opts.GetValueOrDefault("exclude")))))
-    Log($"Excluded mods list: no installed mod matches \"{unmatched}\"");
-result.BudgetFix ??= BudgetFix.FindExisting(modRoot, fixDirs);
-if (result.BudgetFix != null) result.FixCheck = BudgetFix.Check(result.BudgetFix, result);
+ws.ExcludeFile = Platform.FromUser(opts.GetValueOrDefault("exclude-file")) ?? Exclusions.DefaultPath;
+long budget = ws.Prepare(result, Gb(opts.GetValueOrDefault("vram")), opts.GetValueOrDefault("gpu"), Gb(opts.GetValueOrDefault("budget")),
+    Exclusions.Parse(opts.GetValueOrDefault("exclude")), createExcludeFile: !quiet, log: Log);
 int newItemsMax = opts.GetValueOrDefault("new-items-to")?.Trim().ToLowerInvariant() is "1k" or "1024" ? 1024 : 2048;
 var plan = BudgetPlan.Build(result, budget, includeNew: opts.ContainsKey("include-new-items"), newItemsMax);
 if (opts.ContainsKey("stress-all")) // developer stress test: halve every loaded 2K+ texture
@@ -227,14 +197,13 @@ if (makingFix)
     {
         // Show what each choice involves (counts, size, rough time) before asking.
         asked = true;
-        var normal = BudgetPlan.Build(result, budget, includeNew: false);
-        List<PlanStep> NewItems(int max) => BudgetPlan.Build(result, budget, includeNew: true, max).Steps.Where(s => !s.Asset.AlwaysLoaded).ToList();
-        var to2k = NewItems(2048);
-        var to1k = NewItems(1024);
+        var choices = FixChoices.Build(result, budget);
+        var normal = choices.Normal;
+        var to2k = choices.To2K;
+        var to1k = choices.To1K;
 
-        // Every mod the fix could touch (to1k holds all of the new-items choices), so the player can keep some untouched.
-        var touched = normal.Steps.Concat(to1k).GroupBy(s => s.Mod).Select(g => (Mod: g.Key, Count: g.Count(), Saves: g.Sum(s => s.Saves)))
-            .OrderByDescending(x => x.Saves).ToList();
+        // Every mod the fix could touch, so the player can keep some untouched.
+        var touched = choices.Touched();
         if (touched.Count > 0)
         {
             Console.WriteLine("The fix could touch these mods:");
@@ -248,15 +217,16 @@ if (makingFix)
                 foreach (var m in picked) m.ExcludedFromFix = true;
                 Console.WriteLine($"Leaving untouched: {string.Join(", ", picked.Select(m => m.Name))}");
                 if (Ask("Remember this for next time?"))
-                    Console.WriteLine(Exclusions.Append(excludeFile, picked.Select(m => m.Name))
-                        ? $"Saved to \"{Path.GetFileName(excludeFile)}\" next to the tool."
+                    Console.WriteLine(Exclusions.Append(ws.ExcludeFile, picked.Select(m => m.Name))
+                        ? $"Saved to \"{Path.GetFileName(ws.ExcludeFile)}\" next to the tool."
                         : "Couldn't save that list this time (the file can't be written). The mods are still left alone for this run.");
                 Console.WriteLine();
                 // Plan again without them, so the questions below show the new numbers.
                 plan = BudgetPlan.Build(result, budget, includeNew: opts.ContainsKey("include-new-items"), newItemsMax);
-                normal = BudgetPlan.Build(result, budget, includeNew: false);
-                to2k = NewItems(2048);
-                to1k = NewItems(1024);
+                choices = FixChoices.Build(result, budget);
+                normal = choices.Normal;
+                to2k = choices.To2K;
+                to1k = choices.To1K;
             }
         }
         var chosen = new List<PlanStep>();
@@ -267,7 +237,7 @@ if (makingFix)
         else
         {
             Console.WriteLine($"Normal play: your mods add about {Report.Size(normal.Current)} on top of the game, but your card only has room for {Report.Size(normal.Budget)} ({Report.Size(normal.Current - normal.Budget)} too much).");
-            Console.WriteLine($"  Fix: halve {normal.Steps.Count:N0} texture(s), saving about {Report.Size(normal.Steps.Sum(s => s.Saves))}. {Describe(normal.Steps)}");
+            Console.WriteLine($"  Fix: halve {normal.Steps.Count:N0} texture(s), saving about {Report.Size(normal.Steps.Sum(s => s.Saves))}. {BudgetFix.DescribeWork(normal.Steps)}");
             if (Ask("Halve these textures?")) chosen.AddRange(normal.Steps);
         }
         if (normal.Current > normal.Budget && Report.SettingsTips(result) is { Length: > 0 } tips)
@@ -282,7 +252,7 @@ if (makingFix)
             if (to2k.Count > 0)
             {
                 Console.WriteLine($"New armor, weapons and other added content: {to2k.Count:N0} texture(s) are 4K or larger. They only use VRAM while worn or spawned.");
-                Console.WriteLine($"  Shrinking them to 2K saves up to {Report.Size(to2k.Sum(s => s.Saves))} while they're in use. {Describe(to2k)}");
+                Console.WriteLine($"  Shrinking them to 2K saves up to {Report.Size(to2k.Sum(s => s.Saves))} while they're in use. {BudgetFix.DescribeWork(to2k)}");
                 if (Ask("Also shrink these to 2K?")) pick = to2k;
             }
             else Console.WriteLine($"New armor, weapons and other added content: {to1k.Count:N0} texture(s) are 2K. They only use VRAM while worn or spawned.");
@@ -290,7 +260,7 @@ if (makingFix)
             {
                 long more = to1k.Sum(s => s.Saves) - (pick?.Sum(s => s.Saves) ?? 0);
                 Console.WriteLine($"  Going to 1K ({to1k.Count:N0} texture(s), 2K ones included) saves {(pick != null ? "another" : "up to")} {Report.Size(more)}. "
-                    + $"They look softer up close; on small screens like the Steam Deck's that's hard to see. {Describe(to1k)}");
+                    + $"They look softer up close; on small screens like the Steam Deck's that's hard to see. {BudgetFix.DescribeWork(to1k)}");
                 if (Ask(pick != null ? "Go further, to 1K instead?" : "Shrink these to 1K?")) pick = to1k;
             }
             if (pick != null) chosen.AddRange(pick);
@@ -312,26 +282,10 @@ if (makingFix)
     }
     else
     {
-        // Through MO2, writing into the virtual game folder is unreliable, so the fix becomes a real MO2 mod
-        // folder instead. --mo2-output <instance> forces this (testing).
-        bool viaMo2 = UnderMo2() || opts.ContainsKey("mo2-output");
-        string? targetDir = null;
-        bool mo2ModFolder = false;
-        if (viaMo2)
-        {
-            var inst = opts.GetValueOrDefault("mo2-output") ?? mo2 ?? ModManagers.RunningMo2Instance();
-            var modsDir = inst != null ? ModManagers.Mo2ModsDir(inst) : null;
-            mo2ModFolder = modsDir != null;
-            var root = modsDir ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "White Honey");
-            targetDir = Path.Combine(root, Mo2FixModName, "mods");
-        }
+        var target = ws.TargetForFix(opts.ContainsKey("mo2-output"), opts.GetValueOrDefault("mo2-output"));
         Console.WriteLine($"Writing the fix: {plan.Steps.Count:N0} texture(s). Leave this window open until it says DONE.");
         var started = Stopwatch.StartNew();
         var status = new BudgetFix.BuildStatus();
-        using var fixLog = OpenLog(Path.Combine(outDir, "White-Honey-Fix.log"));
-        void Trace(string s) { lock (fixLog) fixLog.WriteLine($"{DateTime.Now:HH:mm:ss.fff} {s}"); }
-        Trace($"v{Report.Version} game={game} mo2={viaMo2} steps={plan.Steps.Count}");
-
         // Progress runs on its own thread and only reads counters, so a blocked console can never stall the work.
         var buildDone = new ManualResetEventSlim();
         var ui = new Thread(() =>
@@ -353,11 +307,8 @@ if (makingFix)
         }) { IsBackground = true };
         ui.Start();
         BudgetFix.Outcome outcome;
-        Trace($"output: {targetDir ?? "game folder"}");
-        try { outcome = BudgetFix.Build(result, plan, modRoot, Log, status, Trace, targetDir, fixDirs, viaMo2 ? null : modsSettings); }
+        try { outcome = ws.ApplyFix(result, plan, target, outDir, Log, status); }
         finally { buildDone.Set(); ui.Join(2000); }
-        if (targetDir != null) WriteSetting(settingsFile, "fixdir", targetDir);
-        Trace($"finished: {outcome.Textures} written, {outcome.Skipped.Count} skipped, {started.Elapsed.TotalSeconds:0}s");
         Console.WriteLine($"  Finished in {started.Elapsed.TotalSeconds:0}s.");
         Console.WriteLine();
         result.BudgetFix = outcome.Path;
@@ -367,17 +318,17 @@ if (makingFix)
         Console.WriteLine($"  {Platform.Shown(outcome.Path)}");
         if (outcome.Skipped.Count > 0) Console.WriteLine($"({outcome.Skipped.Count} texture(s) were skipped because their layout can't be shrunk safely.)");
         Console.WriteLine();
-        if (mo2ModFolder)
+        if (target.Mo2ModFolder)
         {
-            Console.WriteLine($"MOD ORGANIZER 2: the fix was saved as a new MO2 mod called \"{Mo2FixModName}\".");
+            Console.WriteLine($"MOD ORGANIZER 2: the fix was saved as a new MO2 mod called \"{BudgetFix.Mo2FixModName}\".");
             Console.WriteLine("  1. In MO2, press F5 (or the Refresh button) so it shows up in the left list.");
             Console.WriteLine("  2. Tick its checkbox to enable it. That's it; start the game from MO2 as usual.");
             Console.WriteLine("  To undo: untick it, or double-click \"Undo budget fix.bat\".");
         }
-        else if (viaMo2)
+        else if (target.ViaMo2)
         {
             Console.WriteLine("MOD ORGANIZER 2: your MO2 mods folder wasn't found, so the fix was saved as a ready-made mod folder:");
-            Console.WriteLine($"  {Platform.Shown(Path.GetDirectoryName(targetDir!)!)}");
+            Console.WriteLine($"  {Platform.Shown(Path.GetDirectoryName(target.Dir!)!)}");
             Console.WriteLine("  Copy that folder into MO2's mods folder, then enable it.");
         }
         else Console.WriteLine("Start the game as usual. To undo, double-click \"Undo budget fix.bat\".");
@@ -386,11 +337,7 @@ if (makingFix)
     Console.WriteLine(new string('=', 72));
 }
 
-var html = Path.Combine(outDir, "White-Honey-Report.html");
-var json = Path.Combine(outDir, "White-Honey-Report.json");
-using (var fs = File.Create(json)) Report.WriteJson(result, plan, fs);
-Report.WriteHtml(result, plan, html);
-File.WriteAllText(Path.Combine(outDir, "White-Honey-Summary.md"), Summary.Markdown(result, plan));
+var html = Workspace.WriteReports(result, plan, outDir);
 Console.WriteLine();
 Console.WriteLine($"Report: {Platform.Shown(html)}");
 if (!opts.ContainsKey("no-open") && OperatingSystem.IsWindows())
@@ -412,12 +359,6 @@ void Pause()
         Console.WriteLine(Platform.IsWine ? "Press Enter to close." : "Press any key to close.");
         if (Platform.IsWine) Console.ReadLine(); else Console.ReadKey(true);
     }
-}
-
-static StreamWriter OpenLog(string path)
-{
-    try { Directory.CreateDirectory(Path.GetDirectoryName(path)!); return new StreamWriter(path, append: false) { AutoFlush = true }; }
-    catch { return StreamWriter.Null; }
 }
 
 // Windows "QuickEdit": clicking in a console window starts a text selection and pauses every
@@ -454,15 +395,6 @@ bool Ask(string question)
     }
 }
 
-// "About 240 MB to write, under a minute": copying compressed mips is fast (~400 MB/s of fix data on an SSD).
-static string Describe(IReadOnlyCollection<PlanStep> steps)
-{
-    long bytes = BudgetFix.EstimateBytes(steps);
-    double seconds = bytes / (400.0 * (1 << 20)) + steps.Count * 0.002;
-    string time = seconds < 60 ? "under a minute" : $"roughly {Math.Ceiling(seconds / 60)} minute(s)";
-    return $"About {Report.Size(bytes)} to write, {time}.";
-}
-
 string? AskForMo2()
 {
     Console.WriteLine();
@@ -474,110 +406,10 @@ string? AskForMo2()
     var answer = ReadPath();
     if (string.IsNullOrEmpty(answer)) return null;
     if (int.TryParse(answer, out var n) && n >= 1 && n <= found.Count) return found[n - 1];
-    if (File.Exists(answer) && Path.GetFileName(answer).Equals("ModOrganizer.ini", StringComparison.OrdinalIgnoreCase)) answer = Path.GetDirectoryName(answer)!;
-    return Directory.Exists(answer) ? answer : null;
+    return ModManagers.Mo2InstanceFrom(answer);
 }
 
 static string? ReadPath() => Platform.FromUser(Console.ReadLine());
-
-// MO2 runs tools through its virtual file system (usvfs); new files then land in "Overwrite".
-static bool UnderMo2()
-{
-    try { return Process.GetCurrentProcess().Modules.Cast<ProcessModule>().Any(m => m.ModuleName.StartsWith("usvfs", StringComparison.OrdinalIgnoreCase)); }
-    catch { return false; }
-}
-
-static string? ReadSetting(string file, string key)
-{
-    try
-    {
-        if (!File.Exists(file)) return null;
-        var line = File.ReadAllLines(file).FirstOrDefault(l => l.StartsWith(key + "=", StringComparison.OrdinalIgnoreCase));
-        var v = line?[(key.Length + 1)..].Trim();
-        return string.IsNullOrEmpty(v) ? null : v;
-    }
-    catch { return null; }
-}
-
-static void WriteSetting(string file, string key, string value)
-{
-    try
-    {
-        var lines = File.Exists(file) ? File.ReadAllLines(file).Where(l => !l.StartsWith(key + "=", StringComparison.OrdinalIgnoreCase)).ToList() : new List<string>();
-        lines.Add($"{key}={value}");
-        File.WriteAllLines(file, lines);
-    }
-    catch { }
-}
-
-// The game folder has content\ plus the exe in bin\x64 (DirectX 11) or bin\x64_dx12.
-static bool IsGame(string? d) => d != null && Directory.Exists(Path.Combine(d, "content"))
-    && (File.Exists(Path.Combine(d, "bin", "x64_dx12", "witcher3.exe")) || File.Exists(Path.Combine(d, "bin", "x64", "witcher3.exe")));
-
-static string? FindGame(string? hint, string? saved = null)
-{
-    if (hint != null) return IsGame(hint) ? Path.GetFullPath(hint) : null;
-
-    // Installed as a mod: <game>/tools/White Honey/WhiteHoney.exe
-    for (var d = new DirectoryInfo(AppContext.BaseDirectory); d != null; d = d.Parent)
-        if (IsGame(d.FullName)) return d.FullName;
-    for (var d = new DirectoryInfo(Environment.CurrentDirectory); d != null; d = d.Parent)
-        if (IsGame(d.FullName)) return d.FullName;
-    // Unzipped somewhere else: the game folder the player gave us before.
-    if (IsGame(saved)) return Path.GetFullPath(saved!);
-
-    var candidates = new List<string>();
-    if (OperatingSystem.IsWindows())
-    {
-        var steamNames = new[] { "The Witcher 3", "The Witcher 3 Wild Hunt", "The Witcher 3 Wild Hunt GOTY" };
-        try
-        {
-            var steam = Registry.GetValue(@"HKEY_CURRENT_USER\Software\Valve\Steam", "SteamPath", null) as string;
-            foreach (var root in new[] { steam, @"C:\Program Files (x86)\Steam" }.Where(r => r != null))
-            {
-                var libraries = new List<string> { root! };
-                var vdf = Path.Combine(root!, "steamapps", "libraryfolders.vdf");
-                if (File.Exists(vdf))
-                    foreach (Match m in Regex.Matches(File.ReadAllText(vdf), "\"path\"\\s+\"([^\"]+)\""))
-                        libraries.Add(m.Groups[1].Value.Replace(@"\\", @"\"));
-                foreach (var lib in libraries)
-                    foreach (var name in steamNames) candidates.Add(Path.Combine(lib, "steamapps", "common", name));
-            }
-            // GOG: base game, Game of the Year Edition, Complete Edition.
-            foreach (var id in new[] { "1207664663", "1495134320", "1640424747" })
-                foreach (var key in new[] { $@"HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\GOG.com\Games\{id}", $@"HKEY_LOCAL_MACHINE\SOFTWARE\GOG.com\Games\{id}" })
-                    if (Registry.GetValue(key, "path", null) is string gog) candidates.Add(gog);
-        }
-        catch { }
-        // Epic: the launcher's install manifests say where each game is, wherever it was installed.
-        candidates.AddRange(EpicInstallLocations(Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "Epic", "EpicGamesLauncher", "Data", "Manifests")));
-        foreach (var name in steamNames)
-        {
-            candidates.Add(Path.Combine(@"C:\Program Files\Epic Games", name));
-            candidates.Add(Path.Combine(@"C:\GOG Games", name));
-        }
-    }
-    var found = candidates.FirstOrDefault(IsGame);
-    return found == null ? null : Path.GetFullPath(found);
-}
-
-static List<string> EpicInstallLocations(string manifestDir)
-{
-    var found = new List<string>();
-    try
-    {
-        foreach (var item in Directory.GetFiles(manifestDir, "*.item"))
-            try
-            {
-                using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(item));
-                if (doc.RootElement.TryGetProperty("InstallLocation", out var loc) && loc.GetString() is { Length: > 0 } dir) found.Add(dir);
-            }
-            catch { }
-    }
-    catch { }
-    return found;
-}
 
 string? AskForGame()
 {
@@ -586,26 +418,16 @@ string? AskForGame()
     Console.Write("Drag your Witcher 3 folder (the one with \"bin\" and \"content\") into this window, or paste its path, then press Enter: ");
     var answer = ReadPath();
     if (string.IsNullOrEmpty(answer)) return null;
-    try
-    {
-        // Also accept the game's exe or any folder inside the game.
-        for (var d = new DirectoryInfo(File.Exists(answer) ? Path.GetDirectoryName(answer)! : answer); d != null; d = d.Parent)
-            if (IsGame(d.FullName)) return d.FullName;
-    }
-    catch { }
+    if (GameFinder.FromPath(answer) is { } dir) return dir;
     Console.WriteLine("That doesn't look like the Witcher 3 folder (there's no content folder and bin\\x64 or bin\\x64_dx12\\witcher3.exe inside).");
     return null;
 }
+
+static double? Gb(string? s) => double.TryParse(s, System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : null;
 
 static class NativeConsole
 {
     [System.Runtime.InteropServices.DllImport("kernel32.dll")] public static extern IntPtr GetStdHandle(int nStdHandle);
     [System.Runtime.InteropServices.DllImport("kernel32.dll")] public static extern bool GetConsoleMode(IntPtr hConsoleHandle, out uint lpMode);
     [System.Runtime.InteropServices.DllImport("kernel32.dll")] public static extern bool SetConsoleMode(IntPtr hConsoleHandle, uint dwMode);
-}
-
-static partial class Program
-{
-    /// <summary>Name of the MO2 mod folder the fix is saved as when run through Mod Organizer 2.</summary>
-    public const string Mo2FixModName = "White Honey Budget Fix";
 }

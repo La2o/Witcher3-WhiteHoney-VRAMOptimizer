@@ -1,0 +1,521 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>White Honey - VRAM Optimizer {{VERSION}}</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2C16 2 6 14 6 21a10 10 0 0 0 20 0C26 14 16 2 16 2z' fill='%23d4a72c'/%3E%3C/svg%3E">
+<style>
+:root{--bg:#0e0d0c;--panel:#181614;--line:#2e2a25;--fg:#ebe6dc;--dim:#9c9385;--acc:#d4a72c;--acc-fg:#1b1408;--hot:#ef5350;--ok:#66c285;--cy:#86b9dc;--warn:#f0a04b;color-scheme:dark}
+@media (prefers-color-scheme: light){:root{--bg:#f7f5f1;--panel:#fff;--line:#e2ddd3;--fg:#1b1814;--dim:#6b6357;--acc:#8a6a00;--acc-fg:#fff;--hot:#b3261e;--ok:#1b7f47;--cy:#1f5f8b;--warn:#a65300;color-scheme:light}}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 system-ui,"Segoe UI",sans-serif;overflow:auto}
+main{height:100%;display:flex;flex-direction:column;gap:10px;padding:14px 16px 14px;max-width:1500px;margin:0 auto}
+h1{font-size:18px;margin:0;letter-spacing:.4px;font-weight:600}h1 b{color:var(--acc)}h1 .ver{color:var(--dim);font-size:13px;font-weight:400;margin-left:6px}
+h2{font-size:14px;margin:0 0 8px;font-weight:600}
+a{color:var(--cy)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px}
+.row{display:flex;align-items:center;gap:8px;min-width:0}
+.note,.dim{color:var(--dim)}.good{color:var(--ok)}.bad{color:var(--hot)}.warn{color:var(--warn)}
+.pre{white-space:pre-line}
+input[type=text]{background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:6px 8px;font:inherit;min-width:0}
+input[type=text]:focus{outline:none;border-color:var(--acc)}
+input[type=text][readonly]{color:var(--dim)}
+button{background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:6px 12px;cursor:pointer;font:inherit;white-space:nowrap}
+button:hover:not(:disabled){border-color:var(--acc)}
+button:focus-visible,input:focus-visible,a:focus-visible,th:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
+button.primary{background:var(--acc);border-color:var(--acc);color:var(--acc-fg);font-weight:600}
+button.primary:hover:not(:disabled){filter:brightness(1.08)}
+button:disabled{opacity:.45;cursor:default}
+input[type=checkbox],input[type=radio]{accent-color:var(--acc);cursor:pointer}
+input:disabled{cursor:default}
+#gameRow label{color:var(--dim)}#gameBox{flex:1}
+#scanRow{align-items:flex-start}#scanRow button{flex:none}
+#progressBar{flex:none;width:240px;height:10px;margin-top:9px;accent-color:var(--acc)}
+#statusLabel{flex:1;padding-top:5px;min-width:0;overflow-wrap:anywhere}
+#summaryLabel{flex:none}#summaryLabel div{min-height:1.45em;white-space:pre-wrap}
+#gridWrap{flex:1 1 0;min-height:230px;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:8px}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+th,td{padding:6px 10px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th{color:var(--dim);font-weight:500;font-size:12px;user-select:none;background:var(--panel)}
+#modsGrid th{position:sticky;top:0;z-index:1;cursor:pointer;box-shadow:inset 0 -1px 0 var(--line)}
+#modsGrid th:hover{color:var(--fg)}
+#modsGrid th .arrow{display:inline-block;width:1em;text-align:center;color:var(--acc)}
+#modsGrid th.l,#modsGrid td.l{text-align:left}
+#modsGrid th.c,#modsGrid td.c{text-align:center;width:1%}
+#modsGrid td.mod{text-align:left;max-width:0;width:100%;overflow:hidden;text-overflow:ellipsis}
+#modsGrid td.mod .pkg{color:var(--dim);margin-left:12px}
+#modsGrid td.broken{color:var(--hot);text-align:left;max-width:0;overflow:hidden;text-overflow:ellipsis}
+#modsGrid tbody tr:hover{background:color-mix(in srgb,var(--acc) 8%,transparent)}
+#modsGrid tbody tr.out td.mod .nm{color:var(--dim)}
+#gridFooter{justify-content:space-between}#gridHint{min-width:0}
+.bottom{flex:none;display:grid;grid-template-columns:56fr 44fr;gap:12px}
+.bottom .panel{display:flex;flex-direction:column;gap:6px;min-width:0}
+#fixStatusLabel,#fixPlanLabel{overflow-wrap:anywhere}
+#showFixFolderLink{align-self:flex-start}
+.radios{display:flex;flex-direction:column;gap:3px;padding-left:12px}
+.radios label{display:flex;gap:6px;align-items:baseline;cursor:pointer}
+.radios label.off{color:var(--dim);cursor:default}
+.buttons{display:flex;gap:8px;margin-top:auto;padding-top:6px;flex-wrap:wrap}
+#measureNameBox{width:150px}
+#measureRow{flex-wrap:wrap}
+#measureGrid th,#measureGrid td{padding:4px 8px}#measureGrid td:first-child,#measureGrid th:first-child,#measureGrid td.l,#measureGrid th.l{text-align:left}
+#measureGrid td:first-child{max-width:140px;overflow:hidden;text-overflow:ellipsis}
+#measureGrid tbody:empty::after{content:"";display:block;height:4px}
+dialog{background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:10px;padding:18px 20px;max-width:min(600px,92vw);box-shadow:0 10px 40px rgba(0,0,0,.45)}
+dialog::backdrop{background:rgba(0,0,0,.5)}
+dialog p{margin:0 0 12px;white-space:pre-line;overflow-wrap:anywhere}
+dialog .buttons{justify-content:flex-end;margin-top:14px}
+#messageDialog.error p{color:var(--hot)}
+#mo2List{display:flex;flex-direction:column;gap:4px;max-height:200px;overflow:auto;margin-bottom:10px}
+#mo2List label{display:flex;gap:6px;align-items:baseline;cursor:pointer;overflow-wrap:anywhere}
+#mo2PathBox{width:100%}#mo2Error{color:var(--hot);margin:8px 0 0;min-height:0}
+#closedBanner{position:fixed;left:0;right:0;top:0;z-index:10;background:var(--hot);color:#fff;text-align:center;padding:10px 16px;font-weight:600}
+body.closed main{opacity:.45;pointer-events:none}
+@media (max-width:980px),(max-height:700px){
+ body{overflow:auto}main{height:auto}
+ #gridWrap{flex:none;height:55vh;min-height:240px}
+ .bottom{grid-template-columns:1fr}
+}
+</style></head><body>
+<div id="closedBanner" role="alert" hidden>White Honey has closed. You can close this window.</div>
+<main>
+<header class="row"><h1><b>White Honey</b> - VRAM Optimizer<span class="ver">v{{VERSION}}</span></h1></header>
+
+<div class="row" id="gameRow">
+ <label for="gameBox">Game folder:</label>
+ <input type="text" id="gameBox" aria-label="Game folder" spellcheck="false" autocomplete="off">
+ <button id="gameSetButton" type="button">Use this folder</button>
+ <button id="browseButton" type="button">Browse...</button>
+</div>
+
+<div class="row" id="scanRow">
+ <button id="scanButton" class="primary" type="button" disabled>Scan my mods</button>
+ <progress id="progressBar" max="100" value="0" aria-label="Progress"></progress>
+ <div id="statusLabel" class="pre" role="status"></div>
+</div>
+
+<div id="summaryLabel" class="panel" aria-live="polite"></div>
+
+<div id="gridWrap">
+<table id="modsGrid" aria-label="Mods">
+<thead><tr>
+ <th id="colFix" class="c" data-k="trim" tabindex="0">Fix may trim<span class="arrow"></span></th>
+ <th id="colMod" class="l" data-k="name" tabindex="0">Mod<span class="arrow"></span></th>
+ <th id="colNormal" data-k="always" tabindex="0"><span class="arrow"></span>Normal play</th>
+ <th id="colWhenUsed" data-k="whenUsed" tabindex="0"><span class="arrow"></span>When used</th>
+ <th id="colTextures" data-k="textures" tabindex="0"><span class="arrow"></span>Textures</th>
+ <th id="colMeshes" data-k="meshes" tabindex="0"><span class="arrow"></span>Meshes</th>
+ <th id="colFlags" data-k="flags" tabindex="0"><span class="arrow"></span>Flags</th>
+</tr></thead>
+<tbody></tbody>
+</table>
+</div>
+
+<div class="row" id="gridFooter">
+ <span id="gridHint" class="note"></span>
+ <button id="reportButton" type="button" disabled>Open full report</button>
+</div>
+
+<div class="bottom">
+ <section class="panel" id="fixGroup" aria-labelledby="fixTitle">
+  <h2 id="fixTitle">Budget fix (optional)</h2>
+  <div id="fixStatusLabel" class="pre"></div>
+  <a href="#" id="showFixFolderLink" hidden>Show the fix folder</a>
+  <div id="fixPlanLabel" class="pre"></div>
+  <div id="newItemsCaption"></div>
+  <div class="radios" role="radiogroup" aria-labelledby="newItemsCaption">
+   <label id="newItemsLeaveLabel"><input type="radio" name="newItems" id="newItemsLeave" value="leave"><span></span></label>
+   <label id="newItemsTo2KLabel"><input type="radio" name="newItems" id="newItemsTo2K" value="2k"><span></span></label>
+   <label id="newItemsTo1KLabel"><input type="radio" name="newItems" id="newItemsTo1K" value="1k"><span></span></label>
+  </div>
+  <div class="buttons">
+   <button id="applyButton" class="primary" type="button" disabled>Apply budget fix</button>
+   <button id="undoButton" type="button" disabled>Undo budget fix</button>
+  </div>
+ </section>
+ <section class="panel" id="measureGroup" aria-labelledby="measureTitle">
+  <h2 id="measureTitle">Measure real VRAM (optional)</h2>
+  <div id="measureHelp" class="note"></div>
+  <div class="row" id="measureRow">
+   <label for="measureNameBox">Name this measurement:</label>
+   <input type="text" id="measureNameBox" spellcheck="false" autocomplete="off" value="before">
+   <button id="measureButton" type="button">Measure VRAM in game</button>
+  </div>
+  <div id="measureStatusLabel" class="pre" role="status"></div>
+  <table id="measureGrid" aria-label="Measurements">
+   <thead><tr><th>Session</th><th class="l">When</th><th>Peak</th><th>95th pct</th><th>Steady</th><th class="l">Budget fix</th></tr></thead>
+   <tbody></tbody>
+  </table>
+  <div id="measureChangeLabel" class="note"></div>
+ </section>
+</div>
+</main>
+
+<dialog id="applyConfirm" aria-labelledby="applyConfirmText">
+ <p id="applyConfirmText"></p>
+ <div class="buttons"><button id="applyYes" class="primary" type="button">Yes</button><button id="applyNo" type="button" autofocus>No</button></div>
+</dialog>
+
+<dialog id="mo2Dialog" aria-labelledby="mo2Text">
+ <p id="mo2Text"></p>
+ <div id="mo2List" role="radiogroup" aria-label="Mod Organizer 2 setups"></div>
+ <input type="text" id="mo2PathBox" aria-label="Mod Organizer 2 folder" spellcheck="false" autocomplete="off">
+ <p id="mo2Error" role="alert"></p>
+ <div class="buttons">
+  <button id="mo2UseButton" class="primary" type="button">Use this</button>
+  <button id="mo2BrowseButton" type="button">Browse...</button>
+  <button id="mo2SkipButton" type="button">Skip</button>
+ </div>
+</dialog>
+
+<dialog id="messageDialog" aria-labelledby="messageText">
+ <p id="messageText"></p>
+ <div class="buttons"><button id="messageOk" class="primary" type="button" autofocus>OK</button></div>
+</dialog>
+
+<script>
+'use strict';
+const T = new URLSearchParams(location.search).get('t') || '';
+const $ = id => document.getElementById(id);
+let S = null;
+let sortKey = 'always', sortDesc = true;
+try { const s = JSON.parse(sessionStorage.getItem('wh-sort') || 'null'); if (s && s.k) { sortKey = s.k; sortDesc = !!s.d; } } catch {}
+let seenMessage = 0;
+try { seenMessage = +(sessionStorage.getItem('wh-msg') || 0); } catch {}
+
+// ------------------------------------------------------------------ talking to the tool
+
+async function post(path, body) {
+  let reply = { ok: false };
+  try {
+    const r = await fetch(path, { method: 'POST', headers: { 'X-WH-Token': T, 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+    try { reply = await r.json(); } catch { reply = { ok: r.ok }; }
+    if (!r.ok) reply.ok = false;
+  } catch { reply = { ok: false }; }
+  // A refused change (busy, broken mod...) puts the controls back the way the tool says they are.
+  if (!reply.ok && S) render(S);
+  return reply;
+}
+
+function showClosed() { $('closedBanner').hidden = false; document.body.classList.add('closed'); }
+function hideClosed() { $('closedBanner').hidden = true; document.body.classList.remove('closed'); }
+
+// Closing the window (or reloading) tells the tool at once. A window the browser only puts to sleep says nothing,
+// so the tool keeps running and the page finds it again when it wakes up.
+window.addEventListener('pagehide', e => {
+  if (!e.persisted) try { navigator.sendBeacon('/api/bye?t=' + encodeURIComponent(T)); } catch {}
+});
+
+let lostTimer = null;
+function connect() {
+  const es = new EventSource('/api/events?t=' + encodeURIComponent(T));
+  es.onmessage = e => {
+    clearTimeout(lostTimer); lostTimer = null; hideClosed();
+    let s; try { s = JSON.parse(e.data); } catch { return; }
+    render(s);
+  };
+  es.onerror = () => {
+    if (!lostTimer) lostTimer = setTimeout(showClosed, 3000);
+    if (es.readyState === EventSource.CLOSED) { es.close(); setTimeout(connect, 2000); }
+  };
+}
+
+// ------------------------------------------------------------------ rendering
+
+const setText = (el, t) => { t = t == null ? '' : String(t); if (el.textContent !== t) el.textContent = t; };
+const setTitle = (el, t) => { t = t || ''; if (el.title !== t) el.title = t; };
+let lastGame, lastMeasureName, lastSummary = '';
+
+function render(s) {
+  S = s;
+  if (document.title !== s.title) document.title = s.title;
+  const idle = s.job === 'none';
+
+  // Game folder
+  const gameBox = $('gameBox');
+  if (document.activeElement !== gameBox && s.game !== lastGame) { gameBox.value = s.game || ''; lastGame = s.game; }
+  gameBox.placeholder = s.gameHint || '';
+  setTitle(gameBox, s.gameTip);
+  gameBox.readOnly = !s.canBrowse;
+  $('gameSetButton').disabled = !s.canBrowse;
+  $('browseButton').disabled = !s.canBrowse;
+
+  // Scan row
+  $('scanButton').disabled = !s.canScan;
+  const bar = $('progressBar'), p = s.progress;
+  if (p.indeterminate) { if (bar.hasAttribute('value')) bar.removeAttribute('value'); }
+  else { bar.max = Math.max(1, p.total); bar.value = Math.min(p.done, Math.max(1, p.total)); }
+  setTitle(bar, p.text);
+  setText($('statusLabel'), s.status);
+  setTitle($('statusLabel'), (s.statusNotes || []).join('\n'));
+
+  // Summary
+  const sum = JSON.stringify(s.summary);
+  if (sum !== lastSummary) {
+    lastSummary = sum;
+    const box = $('summaryLabel'); box.textContent = '';
+    for (const line of s.summary) {
+      const div = document.createElement('div');
+      for (const piece of line) {
+        const el = document.createElement(piece.bold ? 'b' : 'span');
+        el.textContent = piece.text;
+        if (piece.tone) el.className = piece.tone;
+        div.appendChild(el);
+      }
+      box.appendChild(div);
+    }
+  }
+  setTitle($('summaryLabel'), s.summaryTip);
+
+  renderMods(s, idle);
+  setText($('gridHint'), s.gridHint);
+  $('gridHint').className = s.gridHintWarn ? 'warn' : 'note';
+  $('reportButton').disabled = !s.canReport;
+
+  // Budget fix
+  const f = s.fix;
+  setText($('fixStatusLabel'), f.status);
+  $('fixStatusLabel').classList.toggle('warn', !!f.warn);
+  $('showFixFolderLink').hidden = !f.exists;
+  setText($('fixPlanLabel'), f.plan.join('\n'));
+  setText($('newItemsCaption'), f.newItems.caption);
+  for (const [id, key, value] of [['newItemsLeave', 'leave', 'leave'], ['newItemsTo2K', 'to2k', '2k'], ['newItemsTo1K', 'to1k', '1k']]) {
+    const input = $(id), opt = f.newItems[key];
+    input.checked = f.newItems.choice === value;
+    input.disabled = !opt.enabled;
+    setText(input.nextElementSibling, opt.text);
+    input.setAttribute('aria-label', opt.text);
+    $(id + 'Label').classList.toggle('off', !opt.enabled);
+  }
+  $('applyButton').disabled = !f.canApply;
+  $('undoButton').disabled = !f.canUndo;
+
+  // Measuring
+  const m = s.measure;
+  setText($('measureHelp'), m.help);
+  const nameBox = $('measureNameBox');
+  if (document.activeElement !== nameBox && m.name !== lastMeasureName) { nameBox.value = m.name; lastMeasureName = m.name; }
+  nameBox.disabled = m.running;
+  setText($('measureButton'), m.buttonText);
+  $('measureButton').disabled = !m.buttonEnabled;
+  setText($('measureStatusLabel'), m.status);
+  const mb = $('measureGrid').tBodies[0], rows = JSON.stringify(m.sessions);
+  if (mb.dataset.sig !== rows) {
+    mb.dataset.sig = rows; mb.textContent = '';
+    for (const x of m.sessions) {
+      const tr = document.createElement('tr');
+      for (const [v, cls] of [[x.label], [x.when, 'l'], [x.peak], [x.p95], [x.steady], [x.budgetFix, 'l']]) {
+        const td = document.createElement('td'); td.textContent = v; if (cls) td.className = cls; tr.appendChild(td);
+      }
+      tr.firstChild.title = x.label;
+      mb.appendChild(tr);
+    }
+  }
+  setText($('measureChangeLabel'), m.change);
+
+  renderMo2(s.mo2Ask);
+  if (s.message && s.message.id !== seenMessage) {
+    seenMessage = s.message.id;
+    try { sessionStorage.setItem('wh-msg', String(seenMessage)); } catch {}
+    showMessage(s.message.text, s.message.error);
+  }
+}
+
+// ------------------------------------------------------------------ the mods table
+
+const NUMBER_COLS = ['always', 'whenUsed', 'textures', 'meshes', 'flags'];
+let modsSig = null;
+const rowsByName = new Map();
+const upper = x => (x || '').toUpperCase();
+const byName = (a, b) => { const x = upper(a.name), y = upper(b.name); return x < y ? -1 : x > y ? 1 : 0; };
+
+function sortValue(m, k) {
+  if (k === 'trim') return m.trim ? 1 : 0;
+  if (m.error) return -1;
+  return m[k];
+}
+
+function compareMods(a, b) {
+  let c;
+  if (sortKey === 'name') c = byName(a, b);
+  else { const x = sortValue(a, sortKey), y = sortValue(b, sortKey); c = x < y ? -1 : x > y ? 1 : 0; }
+  if (c) return sortDesc ? -c : c;
+  // Ties: the heaviest first, then by name, whatever the direction.
+  c = b.gpuDelta - a.gpuDelta;
+  return c ? Math.sign(c) : byName(a, b);
+}
+
+function makeRow(m) {
+  const tr = document.createElement('tr');
+  tr.dataset.mod = m.name;
+  const fix = document.createElement('td'); fix.className = 'c';
+  const box = document.createElement('input'); box.type = 'checkbox'; box.className = 'trim';
+  box.setAttribute('aria-label', 'Fix may trim ' + m.name);
+  fix.appendChild(box); tr.appendChild(fix);
+  const mod = document.createElement('td'); mod.className = 'mod'; mod.title = m.tip;
+  const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = m.name; mod.appendChild(nm);
+  if (m.managerText) { const pkg = document.createElement('span'); pkg.className = 'pkg'; pkg.textContent = m.managerText; mod.appendChild(pkg); }
+  tr.appendChild(mod);
+  if (m.error) {
+    const td = document.createElement('td'); td.className = 'broken'; td.colSpan = NUMBER_COLS.length;
+    td.textContent = td.title = 'BROKEN: ' + m.error;
+    tr.appendChild(td);
+  } else {
+    for (let i = 0; i < NUMBER_COLS.length; i++) tr.appendChild(document.createElement('td'));
+  }
+  return tr;
+}
+
+function renderMods(s, idle) {
+  const tb = $('modsGrid').tBodies[0];
+  const sig = s.mods.map(m => m.name + '\u0001' + (m.error || '') + '\u0001' + (m.managerText || '')).join('\u0002');
+  if (sig !== modsSig) {
+    modsSig = sig; rowsByName.clear(); tb.textContent = '';
+    for (const m of s.mods) rowsByName.set(m.name, makeRow(m));
+  }
+  const fmt = n => Number(n).toLocaleString('en-US');
+  for (const m of s.mods) {
+    const tr = rowsByName.get(m.name);
+    const box = tr.firstChild.firstChild;
+    if (box.checked !== m.trim) box.checked = m.trim;
+    box.disabled = !!m.error || !idle;
+    tr.classList.toggle('out', !m.trim);
+    tr.cells[1].title = m.tip;
+    if (!m.error) {
+      const v = [m.alwaysText, m.whenUsedText, fmt(m.textures), fmt(m.meshes), fmt(m.flags)];
+      for (let i = 0; i < v.length; i++) setText(tr.cells[2 + i], v[i]);
+    }
+  }
+  // Re-order only when the order changed, so the scroll position and focus stay where they are.
+  const sorted = [...s.mods].sort(compareMods).map(m => rowsByName.get(m.name));
+  let same = tb.rows.length === sorted.length;
+  for (let i = 0; same && i < sorted.length; i++) same = tb.rows[i] === sorted[i];
+  if (!same) for (const tr of sorted) tb.appendChild(tr);
+  for (const th of $('modsGrid').tHead.rows[0].cells) {
+    const active = th.dataset.k === sortKey;
+    setText(th.querySelector('.arrow'), active ? (sortDesc ? '▾' : '▴') : '');
+    th.setAttribute('aria-sort', active ? (sortDesc ? 'descending' : 'ascending') : 'none');
+  }
+}
+
+function sortBy(k) {
+  // Numbers start with the biggest, names with A; a second click reverses.
+  sortDesc = k === sortKey ? !sortDesc : k !== 'name';
+  sortKey = k;
+  try { sessionStorage.setItem('wh-sort', JSON.stringify({ k: sortKey, d: sortDesc })); } catch {}
+  if (S) renderMods(S, S.job === 'none');
+}
+
+$('modsGrid').tHead.addEventListener('click', e => { const th = e.target.closest('th[data-k]'); if (th) sortBy(th.dataset.k); });
+$('modsGrid').tHead.addEventListener('keydown', e => {
+  const th = e.target.closest('th[data-k]');
+  if (th && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); sortBy(th.dataset.k); }
+});
+$('modsGrid').tBodies[0].addEventListener('change', e => {
+  const box = e.target;
+  if (!box.classList.contains('trim')) return;
+  post('/api/exclude', { mod: box.closest('tr').dataset.mod, trim: box.checked });
+});
+
+// ------------------------------------------------------------------ dialogs
+
+const messages = [];
+function showMessage(text, error) {
+  messages.push({ text, error });
+  if (!$('messageDialog').open) nextMessage();
+}
+function nextMessage() {
+  const msg = messages.shift();
+  if (!msg) return;
+  const d = $('messageDialog');
+  setText($('messageText'), msg.text);
+  d.classList.toggle('error', !!msg.error);
+  d.showModal();
+  $('messageOk').focus();
+}
+$('messageOk').addEventListener('click', () => $('messageDialog').close());
+$('messageDialog').addEventListener('close', () => setTimeout(nextMessage, 0));
+
+let mo2Sig = null, mo2Answered = false;
+function renderMo2(ask) {
+  const d = $('mo2Dialog');
+  if (!ask) { mo2Sig = null; if (d.open) d.close(); return; }
+  const sig = JSON.stringify(ask);
+  if (sig === mo2Sig && (d.open || mo2Answered)) return;
+  mo2Sig = sig; mo2Answered = false;
+  setText($('mo2Text'), ask.text);
+  setText($('mo2Error'), '');
+  const list = $('mo2List'); list.textContent = '';
+  ask.instances.forEach((inst, i) => {
+    const label = document.createElement('label');
+    const r = document.createElement('input'); r.type = 'radio'; r.name = 'mo2'; r.value = inst; r.checked = i === 0;
+    r.addEventListener('change', () => { $('mo2PathBox').value = inst; });
+    const span = document.createElement('span'); span.textContent = inst;
+    label.append(r, span); list.appendChild(label);
+  });
+  $('mo2PathBox').value = ask.instances[0] || '';
+  $('mo2UseButton').disabled = false;
+  if (!d.open) d.showModal();
+  (ask.instances.length ? $('mo2UseButton') : $('mo2PathBox')).focus();
+}
+async function answerMo2(body) {
+  const r = await post('/api/mo2', body);
+  if (r.ok) { mo2Answered = true; $('mo2Dialog').close(); }
+  else if (r.error && !r.busy) setText($('mo2Error'), r.error);
+}
+$('mo2UseButton').addEventListener('click', () => answerMo2({ path: $('mo2PathBox').value }));
+$('mo2PathBox').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); answerMo2({ path: $('mo2PathBox').value }); } });
+$('mo2SkipButton').addEventListener('click', () => answerMo2({ skip: true }));
+$('mo2Dialog').addEventListener('cancel', e => { e.preventDefault(); answerMo2({ skip: true }); });
+$('mo2BrowseButton').addEventListener('click', async () => {
+  const r = await post('/api/browse', { for: 'mo2' });
+  if (r.ok && r.path) answerMo2({ path: r.path });
+});
+
+// ------------------------------------------------------------------ buttons
+
+async function useGameFolder(path) {
+  const r = await post('/api/game', { path });
+  if (!r.ok && r.error && !r.busy) showMessage(r.error, false);
+  else if (r.ok) $('gameBox').blur();
+}
+$('gameSetButton').addEventListener('click', () => useGameFolder($('gameBox').value));
+$('gameBox').addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); useGameFolder($('gameBox').value); }
+  else if (e.key === 'Escape' && S) { $('gameBox').value = S.game || ''; }
+});
+$('browseButton').addEventListener('click', async () => {
+  const r = await post('/api/browse', {});
+  if (r.ok && r.path) useGameFolder(r.path);
+});
+$('scanButton').addEventListener('click', () => post('/api/scan'));
+$('reportButton').addEventListener('click', async () => {
+  const r = await post('/api/report');
+  if (!r.ok && r.error && !r.busy) showMessage(r.error, true);
+});
+$('showFixFolderLink').addEventListener('click', e => { e.preventDefault(); post('/api/show-fix'); });
+for (const id of ['newItemsLeave', 'newItemsTo2K', 'newItemsTo1K'])
+  $(id).addEventListener('change', e => { if (e.target.checked) post('/api/new-items', { choice: e.target.value }); });
+
+$('applyButton').addEventListener('click', () => {
+  if (!S || !S.fix.confirm) return;
+  setText($('applyConfirmText'), S.fix.confirm);
+  $('applyConfirm').showModal();
+  $('applyNo').focus();
+});
+$('applyNo').addEventListener('click', () => $('applyConfirm').close());
+$('applyYes').addEventListener('click', async () => {
+  $('applyConfirm').close();
+  const r = await post('/api/apply');
+  if (!r.ok && r.error && !r.busy) showMessage(r.error, true);
+});
+$('undoButton').addEventListener('click', () => post('/api/undo'));
+
+$('measureButton').addEventListener('click', () => {
+  if (S && S.measure.running) post('/api/measure/stop');
+  else post('/api/measure/start', { label: $('measureNameBox').value });
+});
+$('measureNameBox').addEventListener('keydown', e => { if (e.key === 'Enter' && S && !S.measure.running) { e.preventDefault(); $('measureButton').click(); } });
+
+connect();
+</script>
+</body></html>

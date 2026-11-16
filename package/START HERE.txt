@@ -1,7 +1,18 @@
 White Honey - VRAM Optimizer (The Witcher 3)
 ============================================
 
-Double-click the numbered files in order:
+Prefer a window with buttons?
+
+  WhiteHoneyUI.exe
+      Double-click it. One window opens where you do everything with the
+      mouse: scan your mods, tick which mods the fix may trim, apply or undo
+      the budget fix, open the full report and measure VRAM. It opens as an
+      app window in Microsoft Edge (Chrome or your normal browser if Edge
+      is missing). The page comes from the tool on your own PC; nothing is
+      sent anywhere. Close the window and the tool closes too.
+
+Or double-click the numbered files in order (they do the same in a console
+window):
 
   1 - Scan my mods.bat
       Checks every texture and mesh mod you have installed (mods and dlc
@@ -38,9 +49,9 @@ Double-click the numbered files in order:
 
 This folder can live anywhere (game folder, Desktop, ...). If the tool can't
 find your game, it asks for the game folder once and remembers it.
-A shortcut says WhiteHoney.exe is missing? Your antivirus probably removed
-it: restore it in Windows Security > Virus & threat protection > Protection
-history, or download the mod again.
+A shortcut says WhiteHoney.exe is missing, or WhiteHoneyUI.exe is gone? Your
+antivirus probably removed it: restore it in Windows Security > Virus &
+threat protection > Protection history, or download the mod again.
 Reports are saved next to these files (White-Honey-Report.html).
 Mods to keep out of the fix are listed in White Honey - Excluded mods.txt
 (next to these files; the first scan creates it). Open it in Notepad.
