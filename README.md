@@ -162,9 +162,10 @@ On Windows 11 with Microsoft Edge, on the test mods that `--make-fixtures` build
 - Apply (with its Yes/No question; No writes nothing) and Undo: the fix folder and its `mods.settings` entry are written and removed, and the fix is byte for byte the one the console tool writes for the same plan.
 - The out-of-date warning after unticking a mod that is in the applied fix.
 - Open full report, the folder picker, a wrong game folder, and closing the window (the tool quits about 4 seconds later).
-- Measuring: started, stopped and compared in the window, but against another running program standing in for the game.
+- Measuring with the game running (Remastered 5.01c, Steam, no mods): after *Measure VRAM in game* the window found the game by itself, showed live readings while the save loaded, and saved the session when the game closed (peak 8.23 GB in the same room as the 8.28 GB baseline above). The saves were unchanged afterwards.
+- The before/after table and *Stop measuring*: checked in the window, but with another running program standing in for the game.
 
-Not tested yet in the window: a real modlist, measuring with the game itself running, the Mod Organizer 2 question and saving the fix as an MO2 mod, running without Edge (Chrome or default browser), and Windows 10.
+Not tested yet in the window: a real modlist, a real before/after pair of measurements with a fix applied, the Mod Organizer 2 question and saving the fix as an MO2 mod, running without Edge (Chrome or default browser), and Windows 10.
 
 ## How the scan works
 
